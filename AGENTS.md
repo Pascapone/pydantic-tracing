@@ -1,3 +1,5 @@
+Always read the index file of the docs (`.docs\project\index.md`) and read more on topics you are not familiar with and that are relevant to the task.
+
 # Getting Started
 
 To run this application:
