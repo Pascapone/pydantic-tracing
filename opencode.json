@@ -1,0 +1,60 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "agent": {
+        "manager": {
+            "mode": "primary",
+            "model": "opencode/glm-5-free",
+            "prompt": "{file:./.prompts/manager.md}",
+            "description": "Der Manager Agent ist der Hauptagent des Systems. Er ist für die Koordination der anderen Agenten zuständig und trifft die Entscheidungen über die weitere Vorgehensweise.",
+            "tools": {
+                "write": false,
+                "edit": false,
+                "bash": true,
+                "read": true,
+                "grep": true,
+                "glob": true,
+                "list": true,
+                "patch": true,
+                "todowrite": true,
+                "todoread": true
+            },
+        },
+        "code-grunt": {
+            "mode": "subagent",
+            "model": "opencode/glm-5-free",
+            "prompt": "{file:./.prompts/code-grunt.md}",
+            "description": "Dieser Agent ist für das Schreiben von Code zuständig. Er bekommt genaue Anweisungen vom Manager Agent und setzt diese um. Er ist nicht für die Planung zuständig.",
+            "tools": {
+                "write": true,
+                "edit": true,
+                "bash": false,
+                "read": true,
+                "grep": true,
+                "glob": true,
+                "list": true,
+                "patch": true,
+                "todowrite": true,
+                "todoread": true
+            },
+            "permission": {
+                "edit": {
+                    "*": "allow",
+                    "./walkthroughs": "allow",
+                    "./plans": "allow",
+                    "./specs": "deny",
+                    "./docs": "deny",
+                    "./tasks": "deny"
+                },
+                "read": {
+                    "*": "allow",
+                    "./frontend": "allow",
+                    "./walkthroughs": "allow",
+                    "./plans": "allow",
+                    "./specs": "allow",
+                    "./tasks": "allow",
+                    "./docs": "allow",
+                }
+            }
+        },
+    }
+}

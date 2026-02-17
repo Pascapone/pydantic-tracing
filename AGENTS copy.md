@@ -191,8 +191,6 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 | **Authorization** | [resource-auth](https://github.com/resource-auth) | Fine-grained, resource-based permissions |
 | **Job Queue** | [BullMQ](https://docs.bullmq.io/) | Redis-based job queue |
 | **Python Workers** | Python 3.11+ | Async job processing for AI/data tasks |
-| **AI Agents** | [pydantic-ai](https://ai.pydantic.dev/) | Multi-agent system with tool calling |
-| **Agent Tracing** | Custom SQLite | Open-source alternative to Logfire |
 | **Database** | [SQLite](https://sqlite.org) | Local file-based DB (`sqlite.db`) |
 | **ORM** | [Drizzle ORM](https://orm.drizzle.team) | TypeScript ORM with `better-sqlite3` driver |
 | **Styling** | [Tailwind CSS](https://tailwindcss.com) | Utility-first CSS framework (v4) |
@@ -230,32 +228,6 @@ src/
 python-workers/    # Python async worker processes
 ├── worker.py      # Main worker entry point
 ├── config.py      # Worker configuration
-├── agents/        # Multi-agent system for tracing tests
-│   ├── orchestrator.py    # Coordinates sub-agents
-│   ├── research.py        # Web search agent
-│   ├── coding.py          # Code generation agent
-│   ├── analysis.py        # Data analysis agent
-│   ├── schemas.py         # Pydantic output models
-│   └── tools/             # Tool implementations
-├── tracing/       # Custom tracing system
-│   ├── spans.py           # Span data models
-│   ├── collector.py       # SQLite storage
-│   ├── processor.py       # Tracer and context management
-│   └── viewer.py          # Query and export utilities
-├── docs/          # Documentation
-│   ├── agents.md          # Agent system docs
-│   ├── tracing.md         # Tracing system docs
-│   ├── examples.md        # Example walkthroughs
-│   ├── api-reference.md   # API reference
-│   └── integration.md     # Integration guide
-├── examples/      # Test scenarios
-│   ├── 00_testmodel.py    # No API calls
-│   ├── 01_basic.py        # Single agent
-│   ├── 02_delegation.py   # Multi-agent delegation
-│   ├── 03_streaming.py    # Streaming with tracing
-│   ├── 04_errors.py       # Error handling
-│   ├── 05_concurrent.py   # Parallel execution
-│   └── 06_conversation.py # Multi-turn conversation
 └── handlers/      # Job handler implementations
     ├── __init__.py
     └── context.py # Job context utilities
@@ -290,7 +262,6 @@ BETTER_AUTH_URL=http://localhost:3000
 REDIS_URL=redis://localhost:6379  # Redis for BullMQ
 PYTHON_PATH=python  # Python executable path
 MAX_PYTHON_WORKERS=4  # Concurrent worker limit
-OPENROUTER_API_KEY=...  # API key for pydantic-ai agents
 ```
 
 ### 3.2 Authorization Flow
@@ -412,131 +383,3 @@ pip install -e .
 # Or run standalone:
 python worker.py <input_file>
 ```
-
----
-
-## 6. Pydantic AI Tracing System
-
-The project includes a **custom tracing system** for pydantic-ai agents with SQLite storage. This is an open-source alternative to Logfire.
-
-### 6.1 Why This Exists
-
-[Logfire](https://ai.pydantic.dev/logfire/) is pydantic-ai's official observability platform, but it's closed-source and requires a paid subscription. This project provides a self-hosted alternative.
-
-### 6.2 Features
-
-| Feature | Description |
-|---------|-------------|
-| **Multi-Agent System** | Orchestrator, Research, Coding, Analysis agents |
-| **Tool Calling** | Each agent has multiple tools with complex payloads |
-| **Structured Outputs** | Pydantic models for type-safe outputs |
-| **Agent Delegation** | Agents call other agents as tools |
-| **SQLite Storage** | All traces persisted locally for querying |
-| **OTel Compatible** | Export to OpenTelemetry format |
-
-### 6.3 Quick Start
-
-```bash
-cd python-workers
-python -m venv venv
-source venv/Scripts/activate  # Windows: venv\Scripts\activate
-pip install -e .
-
-# Set API key
-export OPENROUTER_API_KEY=your_key_here
-
-# Run test (no API calls)
-PYTHONIOENCODING=utf-8 python examples/00_testmodel.py
-```
-
-### 6.4 Architecture
-
-```
-python-workers/
-├── agents/
-│   ├── orchestrator.py    # Coordinates sub-agents
-│   ├── research.py        # Web search and summarization
-│   ├── coding.py          # Code generation and execution
-│   ├── analysis.py        # Data analysis and visualization
-│   ├── schemas.py         # Pydantic output models
-│   └── tools/             # Tool implementations
-├── tracing/
-│   ├── spans.py           # Span data models
-│   ├── collector.py       # SQLite storage
-│   ├── processor.py       # Tracer and context management
-│   └── viewer.py          # Query and export utilities
-└── examples/              # Test scenarios (00-06_*.py)
-```
-
-### 6.5 Using the Tracing API
-
-```python
-from agents import create_research_agent, AgentDeps
-from tracing import get_tracer, print_trace
-
-tracer = get_tracer("traces.db")
-agent = create_research_agent()
-deps = AgentDeps(user_id="user1", session_id="session1", request_id="req1")
-
-trace = tracer.start_trace("my_trace", user_id="user1")
-result = await agent.run("What is pydantic-ai?", deps=deps)
-tracer.end_trace()
-
-print_trace(trace.id, "traces.db")
-```
-
-### 6.6 Agent Types
-
-| Agent | Purpose | Tools |
-|-------|---------|-------|
-| **Orchestrator** | Coordinates sub-agents | `delegate_research`, `delegate_coding`, `delegate_analysis` |
-| **Research** | Web search and summarization | `web_search`, `fetch_url`, `summarize_text` |
-| **Coding** | Code generation and execution | `write_file`, `read_file`, `run_code`, `analyze_code` |
-| **Analysis** | Data analysis and visualization | `parse_data`, `calculate_stats`, `generate_chart` |
-
-### 6.7 Example Scripts
-
-| Script | API Calls | Description |
-|--------|-----------|-------------|
-| `00_testmodel.py` | No | Test tracing without API calls |
-| `00_real_api.py` | Yes | Quick API connectivity test |
-| `00_instrumented.py` | Yes | Full instrumentation example |
-| `01_basic.py` | Yes | Single research agent |
-| `02_delegation.py` | Yes | Orchestrator + sub-agents |
-| `03_streaming.py` | Yes | Streaming with trace capture |
-| `04_errors.py` | Yes | Error handling, ModelRetry |
-| `05_concurrent.py` | Yes | Parallel agent execution |
-| `06_conversation.py` | Yes | Multi-turn with history |
-
-### 6.8 Database Schema
-
-**traces table:**
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT | UUID primary key |
-| `name` | TEXT | Trace name |
-| `user_id` | TEXT | User identifier |
-| `session_id` | TEXT | Session identifier |
-| `status` | TEXT | UNSET, OK, or ERROR |
-| `span_count` | INTEGER | Number of spans |
-| `total_duration_ms` | REAL | Total duration |
-
-**spans table:**
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT | UUID primary key |
-| `trace_id` | TEXT | Foreign key to traces |
-| `parent_id` | TEXT | Parent span ID |
-| `name` | TEXT | Span name |
-| `span_type` | TEXT | agent.run, tool.call, etc. |
-| `attributes` | JSON | Key-value metadata |
-| `events` | JSON | List of events |
-
-### 6.9 Documentation
-
-Full documentation available in `python-workers/docs/`:
-- `agents.md` - Multi-agent system documentation
-- `tracing.md` - Tracing system documentation
-- `examples.md` - Example walkthroughs
-- `api-reference.md` - Complete API reference
-- `integration.md` - Integration patterns
