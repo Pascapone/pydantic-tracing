@@ -10,13 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiJobsIndexRouteImport } from './routes/api/jobs/index'
+import { Route as ApiJobsStatsRouteImport } from './routes/api/jobs/stats'
+import { Route as ApiJobsIdRouteImport } from './routes/api/jobs/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsRoute = JobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -29,6 +38,21 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiJobsIndexRoute = ApiJobsIndexRouteImport.update({
+  id: '/api/jobs/',
+  path: '/api/jobs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJobsStatsRoute = ApiJobsStatsRouteImport.update({
+  id: '/api/jobs/stats',
+  path: '/api/jobs/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJobsIdRoute = ApiJobsIdRouteImport.update({
+  id: '/api/jobs/$id',
+  path: '/api/jobs/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -38,35 +62,76 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/jobs/$id': typeof ApiJobsIdRoute
+  '/api/jobs/stats': typeof ApiJobsStatsRoute
+  '/api/jobs/': typeof ApiJobsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/jobs/$id': typeof ApiJobsIdRoute
+  '/api/jobs/stats': typeof ApiJobsStatsRoute
+  '/api/jobs': typeof ApiJobsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/jobs/$id': typeof ApiJobsIdRoute
+  '/api/jobs/stats': typeof ApiJobsStatsRoute
+  '/api/jobs/': typeof ApiJobsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/jobs'
+    | '/login'
+    | '/api/auth/$'
+    | '/api/jobs/$id'
+    | '/api/jobs/stats'
+    | '/api/jobs/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login' | '/api/auth/$'
-  id: '__root__' | '/' | '/dashboard' | '/login' | '/api/auth/$'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/jobs'
+    | '/login'
+    | '/api/auth/$'
+    | '/api/jobs/$id'
+    | '/api/jobs/stats'
+    | '/api/jobs'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/jobs'
+    | '/login'
+    | '/api/auth/$'
+    | '/api/jobs/$id'
+    | '/api/jobs/stats'
+    | '/api/jobs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  JobsRoute: typeof JobsRoute
   LoginRoute: typeof LoginRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiJobsIdRoute: typeof ApiJobsIdRoute
+  ApiJobsStatsRoute: typeof ApiJobsStatsRoute
+  ApiJobsIndexRoute: typeof ApiJobsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -76,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs': {
+      id: '/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof JobsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -92,6 +164,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/jobs/': {
+      id: '/api/jobs/'
+      path: '/api/jobs'
+      fullPath: '/api/jobs/'
+      preLoaderRoute: typeof ApiJobsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/jobs/stats': {
+      id: '/api/jobs/stats'
+      path: '/api/jobs/stats'
+      fullPath: '/api/jobs/stats'
+      preLoaderRoute: typeof ApiJobsStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/jobs/$id': {
+      id: '/api/jobs/$id'
+      path: '/api/jobs/$id'
+      fullPath: '/api/jobs/$id'
+      preLoaderRoute: typeof ApiJobsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -105,8 +198,12 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  JobsRoute: JobsRoute,
   LoginRoute: LoginRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiJobsIdRoute: ApiJobsIdRoute,
+  ApiJobsStatsRoute: ApiJobsStatsRoute,
+  ApiJobsIndexRoute: ApiJobsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

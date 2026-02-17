@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { authMiddleware } from "@/lib/middleware";
 import { useSession, signOut } from "@/lib/auth-client";
 import { getAbilitiesForUser, parseRoles, type AppUser } from "@/lib/abilities";
+import { useTheme } from "@/components/theme-provider";
 import {
   Shield,
   User,
@@ -26,8 +27,8 @@ function DashboardPage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <Loader2 size={40} className="animate-spin text-cyan-400" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-b dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center transition-colors duration-300">
+        <Loader2 size={40} className="animate-spin text-cyan-600 dark:text-cyan-400" />
       </div>
     );
   }
@@ -53,21 +54,21 @@ function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-b dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors duration-300">
       {/* Dashboard Header */}
-      <div className="border-b border-slate-700 bg-slate-800/50 backdrop-blur-sm">
+      <div className="border-b border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isAdmin ? (
-              <Crown size={24} className="text-amber-400" />
+              <Crown size={24} className="text-amber-500 dark:text-amber-400" />
             ) : (
-              <User size={24} className="text-cyan-400" />
+              <User size={24} className="text-cyan-600 dark:text-cyan-400" />
             )}
             <div>
-              <h1 className="text-xl font-bold text-white">
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">
                 {isAdmin ? "Admin Dashboard" : "Dashboard"}
               </h1>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-slate-500 dark:text-gray-400">
                 Welcome, {session.user.name || session.user.email}
               </p>
             </div>
@@ -79,8 +80,8 @@ function DashboardPage() {
                   key={r}
                   className={`px-3 py-1 rounded-full text-xs font-semibold ${
                     r === "admin"
-                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                      : "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                      ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30 border"
+                      : "bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-400 dark:border-cyan-500/30 border"
                   }`}
                 >
                   {r.toUpperCase()}
@@ -89,7 +90,7 @@ function DashboardPage() {
             </div>
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
             >
               <LogOut size={16} />
               Sign Out
@@ -136,10 +137,10 @@ function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Common: User Profile Panel */}
           {abilities.can("view", "Dashboard") && (
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+            <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm dark:shadow-none">
               <div className="flex items-center gap-2 mb-4">
-                <User size={20} className="text-cyan-400" />
-                <h2 className="text-lg font-semibold text-white">
+                <User size={20} className="text-cyan-600 dark:text-cyan-400" />
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                   Your Profile
                 </h2>
               </div>
@@ -157,12 +158,12 @@ function DashboardPage() {
 
           {/* Common: Settings Panel */}
           {abilities.can("view", "Settings") && (
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+            <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm dark:shadow-none">
               <div className="flex items-center gap-2 mb-4">
-                <Settings size={20} className="text-cyan-400" />
-                <h2 className="text-lg font-semibold text-white">Settings</h2>
+                <Settings size={20} className="text-cyan-600 dark:text-cyan-400" />
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Settings</h2>
               </div>
-              <p className="text-gray-400 text-sm">
+              <p className="text-slate-500 dark:text-gray-400 text-sm">
                 {abilities.can("manage", "Settings")
                   ? "You have full access to all settings."
                   : "You can view and update your personal settings."}
@@ -179,17 +180,17 @@ function DashboardPage() {
 
           {/* Admin-only: User Management Panel */}
           {abilities.can("view", "UserList") && (
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-amber-500/30 rounded-xl p-6 lg:col-span-2">
+            <div className="bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-amber-200 dark:border-amber-500/30 rounded-xl p-6 lg:col-span-2 shadow-sm dark:shadow-none">
               <div className="flex items-center gap-2 mb-4">
-                <Shield size={20} className="text-amber-400" />
-                <h2 className="text-lg font-semibold text-white">
+                <Shield size={20} className="text-amber-500 dark:text-amber-400" />
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                   Admin: User Management
                 </h2>
-                <span className="ml-auto px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-400">
+                <span className="ml-auto px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-200 dark:border-transparent">
                   Admin Only
                 </span>
               </div>
-              <p className="text-gray-400 text-sm mb-4">
+              <p className="text-slate-500 dark:text-gray-400 text-sm mb-4">
                 Manage users, assign roles, ban/unban accounts, and view
                 sessions.
               </p>
@@ -222,52 +223,65 @@ function StatCard({
   color: string;
 }) {
   const colorClasses: Record<string, string> = {
-    cyan: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
-    green: "text-green-400 bg-green-500/10 border-green-500/30",
-    amber: "text-amber-400 bg-amber-500/10 border-amber-500/30",
-    purple: "text-purple-400 bg-purple-500/10 border-purple-500/30",
+    cyan: "text-cyan-600 bg-cyan-50 border-cyan-200 dark:text-cyan-400 dark:bg-cyan-500/10 dark:border-cyan-500/30",
+    green: "text-green-600 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-500/10 dark:border-green-500/30",
+    amber: "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-500/10 dark:border-amber-500/30",
+    purple: "text-purple-600 bg-purple-50 border-purple-200 dark:text-purple-400 dark:bg-purple-500/10 dark:border-purple-500/30",
   };
 
   return (
     <div
-      className={`rounded-xl border p-4 ${colorClasses[color] || colorClasses.cyan}`}
+      className={`rounded-xl border p-4 shadow-sm dark:shadow-none ${colorClasses[color] || colorClasses.cyan}`}
     >
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className="text-sm text-gray-400">{label}</span>
+        <span className="text-sm opacity-80">{label}</span>
       </div>
-      <p className="text-lg font-semibold text-white">{value}</p>
+      <p className="text-lg font-semibold text-slate-900 dark:text-white">{value}</p>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-slate-700 last:border-0">
-      <span className="text-sm text-gray-400">{label}</span>
-      <span className="text-sm text-white font-medium">{value}</span>
+    <div className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-slate-700 last:border-0">
+      <span className="text-sm text-slate-500 dark:text-gray-400">{label}</span>
+      <span className="text-sm text-slate-900 dark:text-white font-medium">{value}</span>
     </div>
   );
 }
 
 function SettingToggle({
   label,
-  defaultOn = false,
+  defaultOn = false, // Kept for other toggles using this
 }: {
   label: string;
   defaultOn?: boolean;
 }) {
+  const { theme, setTheme } = useTheme();
+  
+  // If explicitly "Dark Mode" toggle, we hijack the state
+  const isDarkToggle = label === "Dark Mode";
+  const isOn = isDarkToggle ? theme === "dark" : defaultOn;
+
+  const handleToggle = () => {
+    if (isDarkToggle) {
+      setTheme(theme === "dark" ? "light" : "dark");
+    }
+  };
+
   return (
     <div className="flex items-center justify-between py-2">
-      <span className="text-sm text-gray-300">{label}</span>
+      <span className="text-sm text-slate-600 dark:text-gray-300">{label}</span>
       <div
+        onClick={handleToggle}
         className={`w-10 h-5 rounded-full transition-colors cursor-pointer ${
-          defaultOn ? "bg-cyan-500" : "bg-slate-600"
+          isOn ? "bg-cyan-600 dark:bg-cyan-500" : "bg-slate-300 dark:bg-slate-600"
         }`}
       >
         <div
           className={`w-4 h-4 rounded-full bg-white mt-0.5 transition-transform ${
-            defaultOn ? "translate-x-5.5" : "translate-x-0.5"
+            isOn ? "translate-x-5.5" : "translate-x-0.5"
           }`}
         />
       </div>
@@ -285,7 +299,7 @@ function AdminAction({
   return (
     <button
       type="button"
-      className="flex items-center gap-2 p-3 rounded-lg bg-slate-900/50 border border-slate-600 hover:border-amber-500/50 hover:bg-slate-700/50 transition-all text-sm text-gray-300 hover:text-white"
+      className="flex items-center gap-2 p-3 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-200 hover:border-amber-300 dark:bg-slate-900/50 dark:border-slate-600 dark:hover:border-amber-500/50 dark:hover:bg-slate-700/50 transition-all text-sm text-slate-600 dark:text-gray-300 hover:text-slate-900 dark:hover:text-white"
     >
       {icon}
       {label}

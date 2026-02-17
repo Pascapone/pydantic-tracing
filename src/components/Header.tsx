@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Home, Menu, X, LogIn, LayoutDashboard } from "lucide-react";
+import { Home, Menu, X, LogIn, LayoutDashboard, Cpu } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 
 export default function Header() {
@@ -30,13 +30,22 @@ export default function Header() {
         {/* Right side auth link */}
         <div className="ml-auto">
           {session ? (
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
-            >
-              <LayoutDashboard size={18} />
-              Dashboard
-            </Link>
+            <>
+              <Link
+                to="/jobs"
+                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <Cpu size={18} />
+                Jobs
+              </Link>
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <LayoutDashboard size={18} />
+                Dashboard
+              </Link>
+            </>
           ) : (
             <Link
               to="/login"
@@ -80,18 +89,32 @@ export default function Header() {
           </Link>
 
           {session ? (
-            <Link
-              to="/dashboard"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-              activeProps={{
-                className:
-                  "flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-              }}
-            >
-              <LayoutDashboard size={20} />
-              <span className="font-medium">Dashboard</span>
-            </Link>
+            <>
+              <Link
+                to="/dashboard"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+                activeProps={{
+                  className:
+                    "flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
+                }}
+              >
+                <LayoutDashboard size={20} />
+                <span className="font-medium">Dashboard</span>
+              </Link>
+              <Link
+                to="/jobs"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+                activeProps={{
+                  className:
+                    "flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
+                }}
+              >
+                <Cpu size={20} />
+                <span className="font-medium">Jobs</span>
+              </Link>
+            </>
           ) : (
             <Link
               to="/login"

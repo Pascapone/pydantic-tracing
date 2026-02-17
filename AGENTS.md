@@ -187,6 +187,8 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 | **Routing** | [TanStack Router](https://tanstack.com/router) | File-based routing (`src/routes`) |
 | **Authentication** | [better-auth](https://better-auth.com) | Email/password, session management |
 | **Authorization** | [resource-auth](https://github.com/resource-auth) | Fine-grained, resource-based permissions |
+| **Job Queue** | [BullMQ](https://docs.bullmq.io/) | Redis-based job queue |
+| **Python Workers** | Python 3.11+ | Async job processing for AI/data tasks |
 | **Database** | [SQLite](https://sqlite.org) | Local file-based DB (`sqlite.db`) |
 | **ORM** | [Drizzle ORM](https://orm.drizzle.team) | TypeScript ORM with `better-sqlite3` driver |
 | **Styling** | [Tailwind CSS](https://tailwindcss.com) | Utility-first CSS framework (v4) |
@@ -208,12 +210,25 @@ src/
 │   ├── auth-client.ts # Client-side auth hooks
 │   ├── permissions.ts # Role definitions (better-auth)
 │   ├── abilities.ts   # Resource permissions (resource-auth)
-│   └── middleware.ts  # TanStack Start middleware
+│   ├── middleware.ts  # TanStack Start middleware
+│   └── queue/       # Job queue system (BullMQ)
+│       ├── index.ts    # Queue management API
+│       ├── worker.ts   # Python worker processor
+│       ├── redis.ts    # Redis connection
+│       └── types.ts    # Job type definitions
 ├── routes/        # File-based routes
 │   ├── api/       # API routes (e.g. /api/auth/$)
+│   │   └── jobs/  # Job management endpoints
 │   ├── login.tsx  # Auth page
 │   └── dashboard.tsx # Protected app area
 └── types/         # TypeScript declarations
+
+python-workers/    # Python async worker processes
+├── worker.py      # Main worker entry point
+├── config.py      # Worker configuration
+└── handlers/      # Job handler implementations
+    ├── __init__.py
+    └── context.py # Job context utilities
 ```
 
 ### 2.2 Two-Layer Authorization
@@ -242,6 +257,9 @@ The application uses a **hybrid authorization model**:
 ```bash
 BETTER_AUTH_SECRET=...  # 32+ char random string
 BETTER_AUTH_URL=http://localhost:3000
+REDIS_URL=redis://localhost:6379  # Redis for BullMQ
+PYTHON_PATH=python  # Python executable path
+MAX_PYTHON_WORKERS=4  # Concurrent worker limit
 ```
 
 ### 3.2 Authorization Flow
@@ -270,6 +288,96 @@ To introduce a new role (e.g. `editor`):
 |---------|-------------|
 | `npm run dev` | Start development server |
 | `npm run build` | Build for production |
+| `npm run test` | Run tests |
 | `npx drizzle-kit generate` | Generate SQL migrations from schema changes |
 | `npx drizzle-kit migrate` | Apply migrations to `sqlite.db` |
 | `npx drizzle-kit studio` | Open database GUI |
+
+---
+
+## 5. Job Queue System
+
+The application uses **BullMQ** with **Python workers** for async job processing.
+
+### 5.1 Job Types
+
+| Type | Description |
+|------|-------------|
+| `ai.generate_text` | Text generation with AI models |
+| `ai.generate_image` | Image generation (DALL-E, Stable Diffusion) |
+| `ai.analyze_data` | Data analysis and extraction |
+| `ai.embeddings` | Generate text embeddings |
+| `data.process` | General data processing |
+| `data.transform` | Data transformation pipelines |
+| `data.export` | Export data to various formats |
+| `custom` | Custom Python handlers |
+
+### 5.2 Creating a Job
+
+```ts
+import { createJob } from "@/lib/queue";
+
+const jobId = await createJob({
+  type: "ai.generate_text",
+  payload: {
+    model: "gpt-4",
+    prompt: "Hello, world!",
+    temperature: 0.7,
+  },
+  userId: "user-123",
+  options: {
+    priority: 10,
+    attempts: 3,
+  },
+});
+```
+
+### 5.3 API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/jobs` | GET | List jobs (query: `userId`, `status`, `limit`) |
+| `/api/jobs` | POST | Create a new job |
+| `/api/jobs/:id` | GET | Get job details |
+| `/api/jobs/:id` | DELETE | Cancel a job |
+| `/api/jobs/:id` | POST | Retry or update job |
+| `/api/jobs/stats` | GET | Get queue statistics |
+
+### 5.4 Adding Custom Python Handlers
+
+1. Create a new handler in `python-workers/handlers/__init__.py`:
+
+```python
+class MyCustomHandler(JobHandler):
+    @property
+    def job_type(self) -> str:
+        return "custom.my_task"
+
+    async def execute(self, ctx: JobContext, payload: Dict[str, Any]) -> Any:
+        ctx.progress(10, "Starting...")
+        # Your async code here
+        result = await my_async_function(payload)
+        ctx.progress(100, "Complete")
+        return result
+```
+
+2. Register in `python-workers/worker.py`:
+
+```python
+registry.register(MyCustomHandler())
+```
+
+### 5.5 Running Workers
+
+```bash
+# Start Redis (required for BullMQ)
+redis-server
+
+# Install Python dependencies
+cd python-workers
+pip install -e .
+
+# Workers auto-start with the Node.js server
+# Or run standalone:
+python worker.py <input_file>
+```

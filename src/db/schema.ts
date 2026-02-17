@@ -110,3 +110,72 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+export const job = sqliteTable("job", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  status: text("status", { enum: ["pending", "running", "completed", "failed", "cancelled"] })
+    .default("pending")
+    .notNull(),
+  priority: integer("priority").default(0).notNull(),
+  payload: text("payload", { mode: "json" }).notNull(),
+  result: text("result", { mode: "json" }),
+  error: text("error"),
+  progress: integer("progress").default(0),
+  progressMessage: text("progress_message"),
+  attempts: integer("attempts").default(0).notNull(),
+  maxAttempts: integer("max_attempts").default(3).notNull(),
+  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+  startedAt: integer("started_at", { mode: "timestamp_ms" }),
+  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .$onUpdate(() => new Date())
+    .notNull(),
+  scheduledFor: integer("scheduled_for", { mode: "timestamp_ms" }),
+  parentJobId: text("parent_job_id"),
+}, (table) => [
+  index("job_status_idx").on(table.status),
+  index("job_type_idx").on(table.type),
+  index("job_userId_idx").on(table.userId),
+  index("job_createdAt_idx").on(table.createdAt),
+]);
+
+export const jobLog = sqliteTable("job_log", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id")
+    .notNull()
+    .references(() => job.id, { onDelete: "cascade" }),
+  level: text("level", { enum: ["info", "warn", "error", "debug"] }).default("info").notNull(),
+  message: text("message").notNull(),
+  metadata: text("metadata", { mode: "json" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    .notNull(),
+}, (table) => [
+  index("job_log_jobId_idx").on(table.jobId),
+]);
+
+export const jobRelations = relations(job, ({ one, many }) => ({
+  user: one(user, {
+    fields: [job.userId],
+    references: [user.id],
+  }),
+  parentJob: one(job, {
+    fields: [job.parentJobId],
+    references: [job.id],
+    relationName: "parent_child_jobs",
+  }),
+  childJobs: many(job, { relationName: "parent_child_jobs" }),
+  logs: many(jobLog),
+}));
+
+export const jobLogRelations = relations(jobLog, ({ one }) => ({
+  job: one(job, {
+    fields: [jobLog.jobId],
+    references: [job.id],
+  }),
+}));
