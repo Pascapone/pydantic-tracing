@@ -4,10 +4,12 @@ SQLite-based trace collector and storage.
 import sqlite3
 import json
 import threading
+import dataclasses
 from pathlib import Path
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, date
 from contextlib import contextmanager
+from enum import Enum
 
 from .spans import Span, Trace, SpanStatus
 
@@ -137,10 +139,10 @@ class TraceCollector:
                 span.start_time,
                 span.end_time,
                 span.duration_us,
-                json.dumps(span.attributes),
+                self._json_dumps(span.attributes),
                 span.status.value,
                 span.status_message,
-                json.dumps(span.events),
+                self._json_dumps(span.events),
                 span.created_at.isoformat(),
             ),
         )
@@ -284,6 +286,20 @@ class TraceCollector:
         span["attributes"] = json.loads(span["attributes"]) if span["attributes"] else {}
         span["events"] = json.loads(span["events"]) if span["events"] else []
         return span
+
+    def _json_dumps(self, value: Any) -> str:
+        return json.dumps(value, default=self._json_default)
+
+    def _json_default(self, value: Any) -> Any:
+        if hasattr(value, "model_dump"):
+            return value.model_dump()
+        if dataclasses.is_dataclass(value):
+            return dataclasses.asdict(value)
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        if isinstance(value, Enum):
+            return value.value
+        return str(value)
     
     @classmethod
     def reset_instance(cls) -> None:

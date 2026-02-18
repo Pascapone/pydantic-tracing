@@ -19,6 +19,8 @@ This job system enables asynchronous execution of Python jobs through a BullMQ-b
 | [Job Types](./job-types.md) | Payload definitions for all job types |
 | [Configuration](./configuration.md) | Environment variables and settings |
 
+For AI agents and tracing documentation, see [Project Docs - AI Agents](../project/ai-agents.md) or the detailed [Python Workers Docs](../../python-workers/docs/index.md).
+
 ## Quick Start
 
 ### 1. Install Dependencies

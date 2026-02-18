@@ -26,8 +26,11 @@ class SpanType(str, Enum):
     agent_run = "agent.run"
     agent_stream = "agent.stream"
     tool_call = "tool.call"
+    tool_result = "tool.result"
     model_request = "model.request"
     model_response = "model.response"
+    model_reasoning = "model.reasoning"
+    user_prompt = "user.prompt"
     delegation = "agent.delegation"
 
 

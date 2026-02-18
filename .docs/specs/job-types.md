@@ -10,6 +10,7 @@
 | `ai.generate_image` | AI | Image generation (DALL-E, SD) |
 | `ai.analyze_data` | AI | Data analysis and extraction |
 | `ai.embeddings` | AI | Text embeddings generation |
+| `agent.run` | AI | Execute pydantic-ai agents with tracing |
 | `data.process` | Data | General data processing |
 | `data.transform` | Data | Data transformation pipelines |
 | `data.export` | Data | Export to various formats |
@@ -220,6 +221,71 @@ interface AIEmbeddingsResult {
   "texts": ["Hello world", "Goodbye world"]
 }
 ```
+
+---
+
+### agent.run
+
+Execute pydantic-ai agents with full tracing support.
+
+**Payload:**
+
+```typescript
+interface AgentRunPayload {
+  type: "agent.run";
+  
+  // Required
+  agent: "research" | "coding" | "analysis" | "orchestrator";
+  prompt: string;
+  
+  // Optional
+  model?: string;         // Default: "openrouter:minimax/minimax-m2.5"
+  userId?: string;        // User identifier for trace
+  sessionId?: string;     // Session identifier for trace
+  requestId?: string;     // Request identifier for trace
+  options?: {
+    streaming?: boolean;
+    maxTokens?: number;
+    timeout?: number;     // Default: 120 seconds
+  };
+  
+  timeout?: number;
+  metadata?: Record<string, unknown>;
+}
+```
+
+**Result:**
+
+```typescript
+interface AgentRunResult {
+  trace_id: string;       // UUID for viewing in traces UI
+  agent_type: string;
+  output: object;         // Agent-specific output
+  duration_ms: number;
+  status: "ok" | "error";
+  model: string;
+  error?: {
+    type: string;
+    message: string;
+  };
+}
+```
+
+**Example:**
+
+```json
+{
+  "type": "agent.run",
+  "agent": "research",
+  "prompt": "What are the best practices for async Python?",
+  "userId": "user-123",
+  "sessionId": "session-456"
+}
+```
+
+**Handler:** `python-workers/handlers/agent_trace.py`
+
+**See Also:** [AI Agents & Tracing](../project/ai-agents.md)
 
 ---
 
@@ -435,6 +501,7 @@ const validJobTypes = [
   "ai.generate_image",
   "ai.analyze_data",
   "ai.embeddings",
+  "agent.run",
   "data.process",
   "data.transform",
   "data.export",
@@ -460,6 +527,13 @@ function validatePayload(type: string, payload: unknown): string | null {
     case "ai.generate_image":
       if (!payload.prompt) return "prompt is required";
       break;
+    case "agent.run":
+      if (!payload.agent) return "agent is required";
+      if (!payload.prompt) return "prompt is required";
+      if (!["research", "coding", "analysis", "orchestrator"].includes(payload.agent)) {
+        return "invalid agent type";
+      }
+      break;
     case "data.process":
       if (!payload.operation) return "operation is required";
       break;
@@ -473,13 +547,25 @@ function validatePayload(type: string, payload: unknown): string | null {
 
 ## Handler Mapping
 
+### Implemented Handlers
+
 | Type | Handler Class | File |
 |------|--------------|------|
-| `ai.generate_text` | `AIGenerateTextHandler` | `handlers/__init__.py` |
-| `ai.generate_image` | `AIGenerateImageHandler` | `handlers/__init__.py` |
-| `ai.analyze_data` | `AIAnalyzeDataHandler` | `handlers/__init__.py` |
-| `ai.embeddings` | `AIEmbeddingsHandler` | `handlers/__init__.py` |
-| `data.process` | `DataProcessHandler` | `handlers/__init__.py` |
-| `data.transform` | `DataTransformHandler` | `handlers/__init__.py` |
-| `data.export` | `DataExportHandler` | `handlers/__init__.py` |
-| `custom` | `CustomHandler` | `handlers/__init__.py` |
+| `ai.openai.text` | `OpenAITextHandler` | `handlers/__init__.py` |
+| `ai.anthropic.text` | `AnthropicTextHandler` | `handlers/__init__.py` |
+| `agent.run` | `AgentTraceHandler` | `handlers/agent_trace.py` |
+| `data.batch` | `BatchProcessHandler` | `handlers/__init__.py` |
+| `data.pipeline` | `DataPipelineHandler` | `handlers/__init__.py` |
+
+### Planned Handlers (Not Yet Implemented)
+
+| Type | Planned Handler | Status |
+|------|----------------|--------|
+| `ai.generate_text` | Generic text handler | Use `ai.openai.text` or `ai.anthropic.text` |
+| `ai.generate_image` | Image generation | Planned |
+| `ai.analyze_data` | Data analysis | Planned |
+| `ai.embeddings` | Embedding generation | Planned |
+| `data.process` | General processing | Use `data.batch` |
+| `data.transform` | Transformation | Use `data.pipeline` |
+| `data.export` | Export functionality | Planned |
+| `custom` | Custom handlers | Implement your own |

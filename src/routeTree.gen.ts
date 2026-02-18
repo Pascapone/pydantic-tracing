@@ -9,15 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TracesRouteImport } from './routes/traces'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTracesIndexRouteImport } from './routes/api/traces/index'
 import { Route as ApiJobsIndexRouteImport } from './routes/api/jobs/index'
+import { Route as ApiTracesIdRouteImport } from './routes/api/traces/$id'
 import { Route as ApiJobsStatsRouteImport } from './routes/api/jobs/stats'
 import { Route as ApiJobsIdRouteImport } from './routes/api/jobs/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
+const TracesRoute = TracesRouteImport.update({
+  id: '/traces',
+  path: '/traces',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -38,9 +46,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTracesIndexRoute = ApiTracesIndexRouteImport.update({
+  id: '/api/traces/',
+  path: '/api/traces/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiJobsIndexRoute = ApiJobsIndexRouteImport.update({
   id: '/api/jobs/',
   path: '/api/jobs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTracesIdRoute = ApiTracesIdRouteImport.update({
+  id: '/api/traces/$id',
+  path: '/api/traces/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiJobsStatsRoute = ApiJobsStatsRouteImport.update({
@@ -64,20 +82,26 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
+  '/traces': typeof TracesRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id': typeof ApiJobsIdRoute
   '/api/jobs/stats': typeof ApiJobsStatsRoute
+  '/api/traces/$id': typeof ApiTracesIdRoute
   '/api/jobs/': typeof ApiJobsIndexRoute
+  '/api/traces/': typeof ApiTracesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
+  '/traces': typeof TracesRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id': typeof ApiJobsIdRoute
   '/api/jobs/stats': typeof ApiJobsStatsRoute
+  '/api/traces/$id': typeof ApiTracesIdRoute
   '/api/jobs': typeof ApiJobsIndexRoute
+  '/api/traces': typeof ApiTracesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,10 +109,13 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
+  '/traces': typeof TracesRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id': typeof ApiJobsIdRoute
   '/api/jobs/stats': typeof ApiJobsStatsRoute
+  '/api/traces/$id': typeof ApiTracesIdRoute
   '/api/jobs/': typeof ApiJobsIndexRoute
+  '/api/traces/': typeof ApiTracesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,30 +124,39 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/jobs'
     | '/login'
+    | '/traces'
     | '/api/auth/$'
     | '/api/jobs/$id'
     | '/api/jobs/stats'
+    | '/api/traces/$id'
     | '/api/jobs/'
+    | '/api/traces/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/dashboard'
     | '/jobs'
     | '/login'
+    | '/traces'
     | '/api/auth/$'
     | '/api/jobs/$id'
     | '/api/jobs/stats'
+    | '/api/traces/$id'
     | '/api/jobs'
+    | '/api/traces'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/jobs'
     | '/login'
+    | '/traces'
     | '/api/auth/$'
     | '/api/jobs/$id'
     | '/api/jobs/stats'
+    | '/api/traces/$id'
     | '/api/jobs/'
+    | '/api/traces/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -128,14 +164,24 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   JobsRoute: typeof JobsRoute
   LoginRoute: typeof LoginRoute
+  TracesRoute: typeof TracesRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiJobsIdRoute: typeof ApiJobsIdRoute
   ApiJobsStatsRoute: typeof ApiJobsStatsRoute
+  ApiTracesIdRoute: typeof ApiTracesIdRoute
   ApiJobsIndexRoute: typeof ApiJobsIndexRoute
+  ApiTracesIndexRoute: typeof ApiTracesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/traces': {
+      id: '/traces'
+      path: '/traces'
+      fullPath: '/traces'
+      preLoaderRoute: typeof TracesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -164,11 +210,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/traces/': {
+      id: '/api/traces/'
+      path: '/api/traces'
+      fullPath: '/api/traces/'
+      preLoaderRoute: typeof ApiTracesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/jobs/': {
       id: '/api/jobs/'
       path: '/api/jobs'
       fullPath: '/api/jobs/'
       preLoaderRoute: typeof ApiJobsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/traces/$id': {
+      id: '/api/traces/$id'
+      path: '/api/traces/$id'
+      fullPath: '/api/traces/$id'
+      preLoaderRoute: typeof ApiTracesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/jobs/stats': {
@@ -200,10 +260,13 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   JobsRoute: JobsRoute,
   LoginRoute: LoginRoute,
+  TracesRoute: TracesRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiJobsIdRoute: ApiJobsIdRoute,
   ApiJobsStatsRoute: ApiJobsStatsRoute,
+  ApiTracesIdRoute: ApiTracesIdRoute,
   ApiJobsIndexRoute: ApiJobsIndexRoute,
+  ApiTracesIndexRoute: ApiTracesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

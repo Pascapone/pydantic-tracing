@@ -1,10 +1,10 @@
 """
 OpenTelemetry-compatible span processor for pydantic-ai.
 """
-import time
-from typing import Optional, Any, Callable
+import contextvars
+import threading
+from typing import Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from .spans import Span, SpanKind, SpanStatus, SpanType, Trace
 from .collector import TraceCollector, get_collector
@@ -17,7 +17,7 @@ class TracingContext:
     span_stack: list[Span] = field(default_factory=list)
     
     def push_span(self, span: Span) -> None:
-        if self.current_span:
+        if self.current_span and not span.parent_id:
             span.parent_id = self.current_span.id
         self.span_stack.append(span)
         self.current_span = span
@@ -37,13 +37,18 @@ class PydanticAITracer:
         db_path: str = "traces.db",
     ):
         self.collector = collector or get_collector(db_path)
-        self._context = threading.local()
+        self._context_var: contextvars.ContextVar[Optional[TracingContext]] = contextvars.ContextVar(
+            "pydantic_ai_tracing_context",
+            default=None,
+        )
     
     @property
     def context(self) -> TracingContext:
-        if not hasattr(self._context, "ctx") or self._context.ctx is None:
-            self._context.ctx = TracingContext()
-        return self._context.ctx
+        ctx = self._context_var.get()
+        if ctx is None:
+            ctx = TracingContext()
+            self._context_var.set(ctx)
+        return ctx
     
     def start_trace(
         self,
@@ -65,6 +70,7 @@ class PydanticAITracer:
     
     def end_trace(self, status: SpanStatus = SpanStatus.ok) -> Optional[Trace]:
         if self.context.trace:
+            self.context.trace.status = status
             self.collector.complete_trace(self.context.trace)
             trace = self.context.trace
             self.context.trace = None
@@ -79,20 +85,25 @@ class PydanticAITracer:
         kind: SpanKind = SpanKind.internal,
         span_type: Optional[SpanType] = None,
         attributes: Optional[dict[str, Any]] = None,
+        parent_id: Optional[str] = None,
+        activate: bool = True,
     ) -> Span:
         if not self.context.trace:
             self.start_trace(f"auto_trace_{name}")
         
         span = Span(
             trace_id=self.context.trace.id,
-            parent_id=self.context.current_span.id if self.context.current_span else None,
+            parent_id=parent_id if parent_id is not None else (
+                self.context.current_span.id if self.context.current_span else None
+            ),
             name=name,
             kind=kind,
             span_type=span_type,
             attributes=attributes or {},
         )
         
-        self.context.push_span(span)
+        if activate:
+            self.context.push_span(span)
         return span
     
     def end_span(
@@ -105,6 +116,7 @@ class PydanticAITracer:
             for i, s in enumerate(self.context.span_stack):
                 if s.id == span.id:
                     self.context.span_stack.pop(i)
+                    self.context.current_span = self.context.span_stack[-1] if self.context.span_stack else None
                     break
         else:
             span = self.context.pop_span()
@@ -138,8 +150,6 @@ class PydanticAITracer:
     def get_current_span_id(self) -> Optional[str]:
         return self.context.current_span.id if self.context.current_span else None
 
-
-import threading
 
 _tracer: Optional[PydanticAITracer] = None
 _tracer_lock = threading.Lock()

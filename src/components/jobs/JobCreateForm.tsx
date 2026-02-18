@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { JOB_TEMPLATES, type JobTemplateKey, type CreateJobInput } from "@/lib/hooks/use-jobs";
-import { Sparkles, Image, Database, Loader2, X } from "lucide-react";
+import { Sparkles, Image, Database, Brain, Loader2, X } from "lucide-react";
 
 const templateIcons: Record<string, React.ReactNode> = {
   sparkles: <Sparkles size={20} />,
   image: <Image size={20} />,
   data: <Database size={20} />,
+  brain: <Brain size={20} />,
 };
 
 interface JobCreateFormProps {

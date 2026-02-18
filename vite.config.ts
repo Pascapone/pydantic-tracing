@@ -15,7 +15,11 @@ const config = defineConfig({
   },
   plugins: [
     devtools(),
-    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
+    nitro({ 
+      rollupConfig: { external: [/^@sentry\//] },
+      // WebSocket enabled for development - production build has Rollup bug
+      features: { websocket: true },
+    }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],

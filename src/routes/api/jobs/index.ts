@@ -74,6 +74,7 @@ export const Route = createFileRoute("/api/jobs/")({
           "data.transform",
           "data.export",
           "custom",
+          "agent.run",
         ];
 
         if (!validTypes.includes(type)) {

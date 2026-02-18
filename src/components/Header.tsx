@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Home, Menu, X, LogIn, LayoutDashboard, Cpu } from "lucide-react";
+import { Home, Menu, X, LogIn, LayoutDashboard, Cpu, Terminal } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 
 export default function Header() {
@@ -27,10 +27,17 @@ export default function Header() {
           </Link>
         </h1>
 
-        {/* Right side auth link */}
-        <div className="ml-auto">
+{/* Right side auth link */}
+        <div className="ml-auto flex items-center gap-2">
           {session ? (
             <>
+              <Link
+                to="/traces"
+                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <Terminal size={18} />
+                Traces
+              </Link>
               <Link
                 to="/jobs"
                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
@@ -88,7 +95,7 @@ export default function Header() {
             <span className="font-medium">Home</span>
           </Link>
 
-          {session ? (
+{session ? (
             <>
               <Link
                 to="/dashboard"
@@ -113,6 +120,18 @@ export default function Header() {
               >
                 <Cpu size={20} />
                 <span className="font-medium">Jobs</span>
+              </Link>
+              <Link
+                to="/traces"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+                activeProps={{
+                  className:
+                    "flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
+                }}
+              >
+                <Terminal size={20} />
+                <span className="font-medium">Traces</span>
               </Link>
             </>
           ) : (

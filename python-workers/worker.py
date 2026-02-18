@@ -380,6 +380,13 @@ class JobRegistry:
         for handler in handlers:
             self.register(handler)
 
+        # Register agent trace handler from separate module
+        try:
+            from handlers.agent_trace import AgentTraceHandler
+            self.register(AgentTraceHandler())
+        except ImportError:
+            pass  # Skip if agent dependencies not available
+
     def register(self, handler: JobHandler) -> None:
         self._handlers[handler.job_type] = handler
 

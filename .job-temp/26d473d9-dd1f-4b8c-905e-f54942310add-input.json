@@ -1,0 +1,10 @@
+{
+  "jobId": "26d473d9-dd1f-4b8c-905e-f54942310add",
+  "payload": {
+    "agent": "test_model_run",
+    "prompt": "Rerun agent",
+    "type": "agent.run"
+  },
+  "inputPath": "C:\\Users\\pasca\\Coding\\pydantic-tracing\\.job-temp\\26d473d9-dd1f-4b8c-905e-f54942310add-input.json",
+  "outputPath": "C:\\Users\\pasca\\Coding\\pydantic-tracing\\.job-temp\\26d473d9-dd1f-4b8c-905e-f54942310add-output.json"
+}

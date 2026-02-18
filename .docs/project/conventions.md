@@ -7,7 +7,15 @@ Patterns and conventions specific to this project.
 ```
 src/
 ├── components/       # Shared UI components
-│   └── jobs/        # Job-related components
+│   ├── jobs/        # Job-related components
+│   └── tracing/     # Trace viewing components
+│       ├── TraceTerminal.tsx   # Main three-panel layout
+│       ├── TraceHeader.tsx     # Header with stats
+│       ├── TraceTimeline.tsx   # Visual span timeline
+│       ├── TraceSidebar.tsx    # Trace list sidebar
+│       ├── TraceLogStream.tsx  # Real-time log stream
+│       ├── TraceStats.tsx      # Statistics display
+│       └── SpanNode.tsx        # Individual span renderer
 ├── db/              # Database (drizzle)
 ├── lib/             # Core logic
 │   ├── auth.ts      # Server auth
@@ -16,15 +24,29 @@ src/
 │   ├── abilities.ts # ReBAC permissions
 │   ├── middleware.ts # Route middleware
 │   ├── hooks/       # Custom React hooks
+│   │   ├── use-jobs.ts      # Job queries
+│   │   ├── use-traces.ts    # Trace queries
+│   │   └── use-trace-websocket.ts # Real-time updates
+│   ├── tracing/     # Tracing utilities
+│   │   └── db.ts    # SQLite reader for traces.db
 │   └── queue/       # Job queue system
 ├── routes/          # File-based routing
 │   └── api/         # API endpoints
+│       ├── auth/$   # Auth endpoints
+│       ├── jobs/    # Job API
+│       └── traces/  # Traces API
 └── types/           # TypeScript declarations
 
 python-workers/      # Python job handlers
 ├── worker.py        # Main entry point
 ├── config.py        # Worker configuration
-└── handlers/        # Job handlers
+├── handlers/        # Job handlers
+│   ├── __init__.py  # Base handler + registry
+│   ├── context.py   # JobContext utility
+│   └── agent_trace.py # agent.run handler
+├── agents/          # Multi-agent system
+├── tracing/         # Custom tracing system
+└── examples/        # Test scenarios
 ```
 
 ## Route Structure
@@ -38,12 +60,16 @@ src/routes/
 ├── login.tsx        # /login
 ├── dashboard.tsx    # /dashboard
 ├── jobs.tsx         # /jobs
+├── traces.tsx       # /traces
 └── api/
     ├── auth/$.ts    # /api/auth/* (better-auth)
-    └── jobs/
-        ├── index.ts # /api/jobs
-        ├── $id.ts   # /api/jobs/:id
-        └── stats.ts # /api/jobs/stats
+    ├── jobs/
+    │   ├── index.ts # /api/jobs
+    │   ├── $id.ts   # /api/jobs/:id
+    │   └── stats.ts # /api/jobs/stats
+    └── traces/
+        ├── index.ts # /api/traces
+        └── $id.ts   # /api/traces/:id
 ```
 
 ## API Routes Pattern
@@ -149,6 +175,56 @@ function JobPanel() {
   };
   
   return (/* ... */);
+}
+```
+
+### Using Traces Hook
+
+```tsx
+import { useTraces, useTrace, useTraceStats } from "@/lib/hooks/use-traces";
+
+function TracePanel() {
+  const { traces, isLoading } = useTraces({ userId: "user123" });
+  const { trace } = useTrace(traceId, { includeTree: true });
+  const { stats } = useTraceStats();
+  
+  return (
+    <div>
+      <p>Total traces: {stats?.trace_count}</p>
+      {traces.map(t => <div key={t.id}>{t.name}</div>)}
+    </div>
+  );
+}
+```
+
+### Using WebSocket for Live Traces
+
+```tsx
+import { useTraceWebSocket, useTracesSubscription } from "@/lib/hooks/use-trace-websocket";
+
+// Full control
+function LiveTraceViewer({ traceId }: { traceId: string }) {
+  const { spans, isConnected } = useTraceWebSocket(traceId);
+  
+  if (!isConnected) return <div>Connecting...</div>;
+  
+  return (
+    <div>
+      {spans.map(span => (
+        <div key={span.id}>{span.name}</div>
+      ))}
+    </div>
+  );
+}
+
+// Simplified subscription
+function TraceMonitor() {
+  const { isConnected, error } = useTracesSubscription({
+    onTraceCreated: (trace) => console.log("New trace:", trace.id),
+    onTraceUpdated: (trace) => console.log("Updated:", trace.id),
+  });
+
+  return <div>Monitoring: {isConnected ? "Active" : "Offline"}</div>;
 }
 ```
 

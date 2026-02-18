@@ -23,18 +23,13 @@
 │                     handlers/__init__.py                         │
 │                                                                  │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐  │
-│  │AIGenerateText    │  │AIGenerateImage   │  │DataProcess    │  │
-│  │Handler           │  │Handler           │  │Handler        │  │
-│  └──────────────────┘  └──────────────────┘  └───────────────┘  │
-│                                                                  │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌───────────────┐  │
-│  │AIAnalyzeData     │  │AIEmbeddings      │  │DataTransform  │  │
+│  │OpenAIText        │  │AnthropicText     │  │AgentTrace     │  │
 │  │Handler           │  │Handler           │  │Handler        │  │
 │  └──────────────────┘  └──────────────────┘  └───────────────┘  │
 │                                                                  │
 │  ┌──────────────────┐  ┌──────────────────┐                     │
-│  │DataExport        │  │CustomHandler     │                     │
-│  │Handler           │  │                  │                     │
+│  │BatchProcess      │  │DataPipeline      │                     │
+│  │Handler           │  │Handler           │                     │
 │  └──────────────────┘  └──────────────────┘                     │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -47,9 +42,23 @@ python-workers/
 ├── worker.py           # Main entry point
 ├── config.py           # Configuration management
 ├── pyproject.toml      # Dependencies
-└── handlers/
-    ├── __init__.py     # Built-in handlers
-    └── context.py      # JobContext utilities
+├── handlers/
+│   ├── __init__.py     # Built-in handlers
+│   ├── context.py      # JobContext utilities
+│   └── agent_trace.py  # Agent execution with tracing
+├── agents/             # Multi-agent system (pydantic-ai)
+│   ├── __init__.py     # Agent exports
+│   ├── orchestrator.py # Coordinator agent
+│   ├── research.py     # Research agent
+│   ├── coding.py       # Coding agent
+│   ├── analysis.py     # Analysis agent
+│   └── schemas.py      # Pydantic models
+└── tracing/            # Custom tracing system
+    ├── __init__.py     # Tracing exports
+    ├── spans.py        # Span/Trace models
+    ├── collector.py    # SQLite storage
+    ├── processor.py    # Tracer implementation
+    └── viewer.py       # Query utilities
 ```
 
 ## Main Worker (worker.py)
@@ -267,107 +276,129 @@ if __name__ == "__main__":
 
 ## Built-in Handlers
 
-### AIGenerateTextHandler
+### OpenAITextHandler
+
+Text generation using OpenAI API.
 
 ```python
-class AIGenerateTextHandler(JobHandler):
-    @property
-    def job_type(self) -> str:
-        return "ai.generate_text"
+class OpenAITextHandler(BaseHandler):
+    job_type = "ai.openai.text"
 
     async def execute(self, ctx: JobContext, payload: Dict[str, Any]) -> Any:
-        model = payload.get("model", "gpt-4")
-        prompt = payload.get("prompt", "")
-        system_prompt = payload.get("systemPrompt")
-        temperature = payload.get("temperature", 0.7)
-        max_tokens = payload.get("maxTokens", 2000)
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI()
 
-        ctx.progress(10, "Initializing AI model...", "init")
+        model = payload.get("model", "gpt-4-turbo-preview")
+        messages = []
+        if payload.get("systemPrompt"):
+            messages.append({"role": "system", "content": payload["systemPrompt"]})
+        messages.append({"role": "user", "content": payload["prompt"]})
 
-        # Simulate API call - replace with actual AI SDK
-        await asyncio.sleep(0.5)
-        
-        ctx.progress(30, "Sending prompt to model...", "generation")
-        await asyncio.sleep(1)
-        
-        ctx.progress(80, "Processing response...", "postprocessing")
-        await asyncio.sleep(0.5)
+        ctx.progress(10, "Sending request to OpenAI...", "api_call")
 
-        result_text = f"[Simulated response from {model}] Generated: {prompt[:100]}..."
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=payload.get("temperature", 0.7),
+            max_tokens=payload.get("maxTokens", 2000),
+        )
 
-        ctx.progress(100, "Complete", "done")
-
+        ctx.progress(100, "Complete")
         return {
-            "text": result_text,
-            "model": model,
-            "usage": {
-                "prompt_tokens": len(prompt.split()),
-                "completion_tokens": len(result_text.split()),
-                "total_tokens": len(prompt.split()) + len(result_text.split()),
-            },
-            "finish_reason": "stop",
+            "text": response.choices[0].message.content,
+            "model": response.model,
+            "usage": { ... },
         }
 ```
 
-### AIGenerateImageHandler
+### AnthropicTextHandler
+
+Text generation using Anthropic Claude API.
 
 ```python
-class AIGenerateImageHandler(JobHandler):
-    @property
-    def job_type(self) -> str:
-        return "ai.generate_image"
+class AnthropicTextHandler(BaseHandler):
+    job_type = "ai.anthropic.text"
 
     async def execute(self, ctx: JobContext, payload: Dict[str, Any]) -> Any:
-        model = payload.get("model", "dall-e-3")
-        prompt = payload.get("prompt", "")
-        width = payload.get("width", 1024)
-        height = payload.get("height", 1024)
-        steps = payload.get("steps", 30)
+        from anthropic import AsyncAnthropic
+        client = AsyncAnthropic()
 
-        ctx.progress(10, "Initializing image model...", "init")
-
-        for i in range(steps):
-            await asyncio.sleep(0.05)
-            progress = 10 + int((i / steps) * 80)
-            ctx.progress(progress, f"Step {i + 1}/{steps}", "generation")
-
-        ctx.progress(100, "Complete", "done")
-
-        return {
-            "image_url": f"https://placeholder.com/image-{ctx.job_id}.png",
-            "model": model,
-            "width": width,
-            "height": height,
-        }
+        response = await client.messages.create(
+            model=payload.get("model", "claude-3-opus-20240229"),
+            max_tokens=payload.get("maxTokens", 4096),
+            system=payload.get("systemPrompt"),
+            messages=[{"role": "user", "content": payload["prompt"]}],
+        )
+        return {"text": response.content[0].text, ...}
 ```
 
-### DataProcessHandler
+### AgentTraceHandler
+
+Execute pydantic-ai agents with full tracing. See `handlers/agent_trace.py`.
 
 ```python
-class DataProcessHandler(JobHandler):
-    @property
-    def job_type(self) -> str:
-        return "data.process"
+class AgentTraceHandler(BaseHandler):
+    job_type = "agent.run"
 
     async def execute(self, ctx: JobContext, payload: Dict[str, Any]) -> Any:
-        operation = payload.get("operation")
-        input_data = payload.get("input")
+        agent_type = payload.get("agent", "research")
+        prompt = payload.get("prompt")
 
-        ctx.progress(10, f"Starting operation: {operation}", "init")
+        # Create agent
+        agent = agent_factories[agent_type](model=model)
 
-        if operation == "filter":
-            ctx.progress(30, "Filtering data...", "processing")
-            await asyncio.sleep(0.5)
-            result = [item for item in input_data if item]
-        elif operation == "transform":
-            ctx.progress(30, "Transforming data...", "processing")
-            await asyncio.sleep(0.5)
-            result = {"transformed": input_data, "operation": operation}
-        else:
-            result = input_data
+        # Initialize tracer
+        tracer = get_tracer("traces.db")
+        trace = tracer.start_trace(name=f"agent_{agent_type}", ...)
 
-        ctx.progress(100, "Complete", "done")
-        return result
+        # Execute agent
+        result = await agent.run(prompt, deps=deps)
+
+        # End trace
+        tracer.end_trace()
+
+        return {"trace_id": trace.id, "output": result.output, ...}
+```
+
+### BatchProcessHandler
+
+Process items in batches.
+
+```python
+class BatchProcessHandler(BaseHandler):
+    job_type = "data.batch"
+
+    async def execute(self, ctx: JobContext, payload: Dict[str, Any]) -> Any:
+        items = payload.get("items", [])
+        batch_size = payload.get("batchSize", 10)
+        results = []
+
+        for i in range(0, len(items), batch_size):
+            batch = items[i : i + batch_size]
+            progress = 10 + int((i / len(items)) * 80)
+            ctx.progress(progress, f"Processing batch {i // batch_size + 1}...")
+            # Process batch...
+
+        return {"total": len(items), "processed": len(results), ...}
+```
+
+### DataPipelineHandler
+
+Multi-step data pipelines.
+
+```python
+class DataPipelineHandler(BaseHandler):
+    job_type = "data.pipeline"
+
+    async def execute(self, ctx: JobContext, payload: Dict[str, Any]) -> Any:
+        steps = payload.get("steps", [])
+        current_data = payload.get("input")
+
+        for i, step in enumerate(steps):
+            ctx.progress(int((i / len(steps)) * 90), f"Executing: {step['name']}")
+            # Execute step...
+
+        return {"steps_executed": len(steps), "output": current_data, ...}
 ```
 
 ## Adding Custom Handlers

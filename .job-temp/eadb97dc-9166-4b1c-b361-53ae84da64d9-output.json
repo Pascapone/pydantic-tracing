@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "error": "Invalid agent type: test_model_run. Must be one of: ['research', 'coding', 'analysis', 'orchestrator']",
+  "metadata": {
+    "duration_ms": 0,
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\pasca\\Coding\\pydantic-tracing\\python-workers\\worker.py\", line 423, in execute\n    result = await handler.execute(ctx, payload)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\pasca\\Coding\\pydantic-tracing\\python-workers\\handlers\\agent_trace.py\", line 51, in execute\n    raise ValueError(f\"Invalid agent type: {agent_type}. Must be one of: {valid_agents}\")\nValueError: Invalid agent type: test_model_run. Must be one of: ['research', 'coding', 'analysis', 'orchestrator']\n"
+  }
+}

@@ -5,6 +5,7 @@ export type JobType =
   | "ai.generate_image"
   | "ai.analyze_data"
   | "ai.embeddings"
+  | "agent.run"
   | "data.process"
   | "data.transform"
   | "data.export"

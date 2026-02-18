@@ -5,6 +5,7 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "@/db/db";
 import * as schema from "@/db/schema";
 import { ac, roles } from "@/lib/permissions";
+import type { AdminRoles } from "@/types/better-auth";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -17,7 +18,7 @@ export const auth = betterAuth({
   plugins: [
     admin({
       ac,
-      roles,
+      roles: roles as AdminRoles,
       defaultRole: "user",
     }),
     tanstackStartCookies(), // Must be last plugin

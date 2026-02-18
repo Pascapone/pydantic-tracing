@@ -2,6 +2,17 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Custom theme colors for Trace Terminal */
+@theme {
+  --color-primary: #11a4d4;
+  --color-background-light: #f6f8f8;
+  --color-background-dark: #101d22;
+  --color-matrix-green: #0bda57;
+  --color-warning-orange: #ff6b00;
+  --color-surface-dark: #1a262b;
+  --color-surface-light: #ffffff;
+}
+
 body {
   @apply m-0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",

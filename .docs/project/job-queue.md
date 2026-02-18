@@ -31,6 +31,7 @@ const jobId = await createJob({
     temperature: 0.7,
   },
   userId: "user-123",
+  parentId: "parent-job-id",  // Optional: for job hierarchies
   options: {
     priority: 10,
     attempts: 3,
@@ -38,6 +39,10 @@ const jobId = await createJob({
   },
 });
 ```
+
+### Parent Jobs
+
+Jobs can be nested using `parentId` to create hierarchies (e.g., parent job spawns child jobs). The `parentJobId` is stored in the database and accessible via the `job.parentJob` relation.
 
 ## Job Types
 
@@ -53,6 +58,41 @@ Defined in `src/lib/queue/types.ts`:
 | `data.transform` | transformer, input, schema? |
 | `data.export` | format, data, filename? |
 | `custom` | handler, args[], kwargs? |
+| `agent.run` | agent, prompt, model?, userId?, sessionId?, options? |
+
+### agent.run Job Type
+
+Executes pydantic-ai agents with full tracing support.
+
+**Payload:**
+```ts
+{
+  type: "agent.run",
+  agent: "research" | "coding" | "analysis" | "orchestrator",
+  prompt: "User prompt text",
+  model?: "openrouter:minimax/minimax-m2.5",
+  userId?: string,
+  sessionId?: string,
+  options?: {
+    streaming?: boolean,
+    maxTokens?: number,
+    timeout?: number
+  }
+}
+```
+
+**Result:**
+```ts
+{
+  trace_id: string,
+  agent_type: string,
+  output: object,
+  duration_ms: number,
+  status: "ok" | "error"
+}
+```
+
+**Handler:** `python-workers/handlers/agent_trace.py`
 
 ## API Endpoints
 
@@ -128,6 +168,7 @@ retryJob(id)                 // Retry failed job
 getQueueStats()              // { waiting, active, completed, failed, ... }
 getJobsByUser(userId, options?)
 getJobsByStatus(status, options?)
+cleanOldJobs(olderThanDays)  // Delete completed jobs older than N days
 isRedisAvailable()           // Check Redis connectivity
 ```
 

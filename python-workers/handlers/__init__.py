@@ -246,3 +246,10 @@ def register_handlers(registry):
     for handler_class in BUILTIN_HANDLERS:
         handler = handler_class()
         registry.register(handler)
+
+    # Register agent trace handler (optional - requires pydantic-ai)
+    try:
+        from .agent_trace import AgentTraceHandler
+        registry.register(AgentTraceHandler())
+    except ImportError:
+        pass  # Skip if agent dependencies not available

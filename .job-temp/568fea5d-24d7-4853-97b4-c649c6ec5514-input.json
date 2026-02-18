@@ -1,0 +1,11 @@
+{
+  "jobId": "568fea5d-24d7-4853-97b4-c649c6ec5514",
+  "payload": {
+    "agent": "research",
+    "prompt": "ai agents",
+    "model": "openrouter:minimax/minimax-m2.5",
+    "type": "agent.run"
+  },
+  "inputPath": "C:\\Users\\pasca\\Coding\\pydantic-tracing\\.job-temp\\568fea5d-24d7-4853-97b4-c649c6ec5514-input.json",
+  "outputPath": "C:\\Users\\pasca\\Coding\\pydantic-tracing\\.job-temp\\568fea5d-24d7-4853-97b4-c649c6ec5514-output.json"
+}

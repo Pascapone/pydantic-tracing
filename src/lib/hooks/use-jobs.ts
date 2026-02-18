@@ -277,6 +277,22 @@ export const JOB_TEMPLATES = {
       { key: "input", label: "Input Data", type: "textarea", placeholder: "JSON array or object..." },
     ],
   },
+  agentRun: {
+    type: "agent.run",
+    name: "AI Agent",
+    description: "Run AI agents with tracing",
+    icon: "brain",
+    defaultPayload: {
+      agent: "research",
+      prompt: "",
+      model: "openrouter:minimax/minimax-m2.5",
+    },
+    fields: [
+      { key: "agent", label: "Agent Type", type: "select", options: ["research", "coding", "analysis", "orchestrator"] },
+      { key: "prompt", label: "Prompt", type: "textarea", required: true, placeholder: "Enter your prompt for the agent..." },
+      { key: "model", label: "Model", type: "select", options: ["openrouter:minimax/minimax-m2.5", "openrouter:anthropic/claude-3.5-sonnet", "openrouter:openai/gpt-4o"] },
+    ],
+  },
 } as const;
 
 export type JobTemplateKey = keyof typeof JOB_TEMPLATES;

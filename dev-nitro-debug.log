@@ -1,0 +1,27 @@
+
+> dev
+> vite dev --port 3000
+
+node:events:496
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::42069
+    at Server.setupListenHandle [as _listen2] (node:net:1939:16)
+    at listenInCluster (node:net:1996:12)
+    at Server.listen (node:net:2101:7)
+    at ServerEventBus.start (file:///C:/Users/pasca/Coding/pydantic-tracing/node_modules/@tanstack/devtools-event-bus/dist/esm/server/server.js:155:12)
+    at BasicMinimalPluginContext.configureServer (file:///C:/Users/pasca/Coding/pydantic-tracing/node_modules/@tanstack/devtools-vite/dist/esm/plugin.js:52:15)
+    at _createServer (file:///C:/Users/pasca/Coding/pydantic-tracing/node_modules/vite/dist/node/chunks/config.js:25603:97)
+    at async CAC.<anonymous> (file:///C:/Users/pasca/Coding/pydantic-tracing/node_modules/vite/dist/node/cli.js:572:18)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1975:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '::',
+  port: 42069
+}
+
+Node.js v22.16.0
