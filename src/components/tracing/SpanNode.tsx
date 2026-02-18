@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import JsonView from '@uiw/react-json-view';
+import { vscodeTheme } from '@uiw/react-json-view/vscode';
 import type { Span, SpanType, SpanStatus, SpanNodeProps, SpanTypeConfig } from '@/types/tracing';
 import {
   Brain,
@@ -13,6 +15,63 @@ import {
   Lightbulb,
   MessageSquare,
 } from 'lucide-react';
+
+/**
+ * Try to parse a value as JSON. Returns the parsed object if successful,
+ * or null if the value is not a JSON string / is already a primitive.
+ */
+function tryParseJson(value: unknown): object | null {
+  if (value !== null && typeof value === 'object') return value as object;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === 'object' && parsed !== null) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Renders a JSON value with @uiw/react-json-view using the VS Code dark theme.
+ * Falls back to a <pre> block for plain strings.
+ */
+const JsonOrText = ({
+  value,
+  className = '',
+}: {
+  value: unknown;
+  className?: string;
+}) => {
+  const parsed = tryParseJson(value);
+  if (parsed) {
+    return (
+      <div className={`rounded overflow-auto max-h-96 text-xs ${className}`}>
+        <JsonView
+          value={parsed}
+          style={{
+            ...vscodeTheme,
+            background: 'transparent',
+            fontSize: '12px',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          }}
+          collapsed={2}
+          displayDataTypes={false}
+          displayObjectSize={false}
+          enableClipboard
+          shortenTextAfterLength={120}
+        />
+      </div>
+    );
+  }
+  return (
+    <pre className={`font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap overflow-auto max-h-96 ${className}`}>
+      {typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
+    </pre>
+  );
+};
 
 /**
  * Configuration for each span type - icon, colors, and labels
@@ -204,11 +263,7 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
         <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-2">
           Returned from {toolName || 'tool'}:
         </div>
-        <pre className="font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap overflow-auto max-h-64">
-          {typeof toolOutput === 'string' 
-            ? toolOutput 
-            : JSON.stringify(toolOutput, null, 2)}
-        </pre>
+        <JsonOrText value={toolOutput} />
       </div>
     );
   }
@@ -273,48 +328,23 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
     );
   }
   
-  // Agent run - show reasoning/thought
+  // Agent run - content rendered via children spans
   if (spanType === 'agent.run') {
-    const thought = (attributes.thought || attributes.reasoning || content) as any;
-    const output = (attributes.output || attributes.result) as any;
-    
-    return (
-      <div className="p-4 font-mono text-sm text-slate-600 dark:text-slate-300 bg-primary/5 leading-relaxed">
-        {thought ? (
-          <>
-            <span className="text-primary opacity-60">// Reasoning process</span>
-            <br />
-            {typeof thought === 'string' ? thought : JSON.stringify(thought, null, 2)}
-          </>
-        ) : (
-          <span className="text-slate-500 italic">No reasoning captured</span>
-        )}
-        
-        {/* Agent Result Display */}
-        {output && (
-          <div className="mt-4 pt-4 border-t border-primary/20">
-            <span className="text-primary opacity-60 block mb-2">// Final Result</span>
-            <div className="bg-slate-50 dark:bg-[#151f24] p-3 rounded border border-primary/10 font-mono text-xs overflow-auto max-h-80">
-              {typeof output === 'string' 
-                ? output 
-                : JSON.stringify(output, null, 2)}
-            </div>
-          </div>
-        )}
-      </div>
-    );
+    return <></>;
   }
   
-  // Model response - show output
+  // Model response - show output (use JSON viewer for structured/final responses)
   if (spanType === 'model.response') {
     const output = attributes.output || attributes.content || content;
+    const isFinal = name.includes(':final');
     return (
-      <div className="p-4 font-mono text-sm text-slate-700 dark:text-slate-300">
-        {typeof output === 'string' ? output : (
-          <pre className="whitespace-pre-wrap overflow-auto">
-            {JSON.stringify(output, null, 2)}
-          </pre>
+      <div className="p-4">
+        {isFinal && (
+          <div className="text-xs font-semibold text-[#0bda57] mb-2 uppercase tracking-wider">
+            Structured Output
+          </div>
         )}
+        <JsonOrText value={output} />
         {span.status === 'UNSET' && (
           <span className="inline-block w-2 h-4 bg-primary align-middle ml-1 animate-pulse" />
         )}

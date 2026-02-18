@@ -184,7 +184,7 @@ class traced_agent:
         self.session_id = session_id
         self.tracer = tracer or get_tracer()
     
-    def __enter__(self) -> Span:
+    def __enter__(self) -> "traced_agent":
         self.trace = self.tracer.start_trace(
             name=f"agent:{self.agent_name}",
             user_id=self.user_id,
@@ -199,8 +199,52 @@ class traced_agent:
                 "agent.model": self.model,
             },
         )
-        return self.span
+        return self
     
+    def set_result(self, result: Any) -> None:
+        """Set the result of the agent run."""
+        if not self.span:
+            return
+            
+        # Extract output from result object if possible
+        output = result
+        if hasattr(result, "output"):
+            output = result.output
+        elif hasattr(result, "data"):
+            output = result.data
+            
+        # Serialize output
+        serialized = self._serialize_value(output)
+        
+        # Set attributes
+        self.span.set_attribute("output", serialized)
+        if hasattr(output, "__class__"):
+            self.span.set_attribute("result.type", output.__class__.__name__)
+            
+        # Create a final model response span for visibility
+        final_span = self.tracer.start_span(
+            name="model.response:final",
+            kind=SpanKind.client,
+            span_type=SpanType.model_response,
+            parent_id=self.span.id,
+            activate=False,
+            attributes={
+                "output": serialized,
+                "model.response": str(output)[:1000] if output else "",
+            },
+        )
+        self.tracer.end_span(final_span)
+
+    def _serialize_value(self, value: Any) -> Any:
+        try:
+            if hasattr(value, "model_dump"):
+                return value.model_dump()
+            if hasattr(value, "__dict__"):
+                return str(value)
+            return value
+        except Exception:
+            return str(value)
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if exc_type:
             self.span.status = SpanStatus.error

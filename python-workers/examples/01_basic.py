@@ -28,24 +28,31 @@ async def main():
         metadata={"example": "basic_workflow"},
     )
     
-    trace = tracer.start_trace(
-        name="basic_research_example",
-        user_id=deps.user_id,
-        session_id=deps.session_id,
-        request_id=deps.request_id,
-        metadata=deps.metadata,
-    )
-    
-    print(f"\nTrace ID: {trace.id}")
     print("Running research agent...\n")
     
     try:
-        result = await agent.run(
-            "Research information about pydantic-ai agents and tracing",
-            deps=deps,
-        )
+        from tracing import traced_agent
         
-        tracer.end_trace()
+        with traced_agent(
+            agent_name="research_example",
+            model="openrouter:minimax/minimax-m2.5",
+            user_id=deps.user_id,
+            session_id=deps.session_id,
+            tracer=tracer
+        ) as run:
+            # Set metadata on the trace
+            run.trace.request_id = deps.request_id
+            run.trace.metadata = deps.metadata
+            
+            result = await agent.run(
+                "Research information about pydantic-ai agents and tracing",
+                deps=deps,
+            )
+            
+            run.set_result(result)
+            trace_id = run.trace.id
+            
+        print(f"\nTrace ID: {trace_id}")
         
         print(f"\nResearch Report:")
         print(f"  Query: {result.output.query}")
@@ -57,10 +64,9 @@ async def main():
         print("\n" + "=" * 60)
         print("Trace Summary:")
         print("=" * 60)
-        print_trace(trace.id, str(db_path))
+        print_trace(trace_id, str(db_path))
         
     except Exception as e:
-        tracer.end_trace()
         print(f"Error: {e}")
         raise
 

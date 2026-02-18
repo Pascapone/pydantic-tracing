@@ -35,41 +35,33 @@ async def main():
         instructions="You are a test agent.",
     )
     
-    trace = tracer.start_trace(
-        name="test_model_run",
-        user_id="test_user",
-        session_id="test_session",
-        metadata={"test": True},
-    )
-    
-    print(f"\nTrace ID: {trace.id}")
-    
-    agent_span = tracer.start_span(
-        name="agent.run:test_agent",
-        kind=SpanKind.internal,
-        span_type=SpanType.agent_run,
-        attributes={"agent.name": "test_agent", "agent.model": "TestModel"},
-    )
-    
     print("Running agent with TestModel...")
     
     try:
-        result = await agent.run("Hello, test!")
+        from tracing import traced_agent
         
-        tracer.add_event("agent_completed", {"output_type": type(result.output).__name__})
-        
-        agent_span.set_attribute("result.message", result.output.message)
-        agent_span.set_attribute("result.count", result.output.count)
-        
-        tracer.end_span(agent_span)
-        tracer.end_trace()
-        
+        with traced_agent(
+            agent_name="test_agent",
+            model="TestModel",
+            tracer=tracer,
+            user_id="test_user",
+            session_id="test_session"
+        ) as run:
+            run.trace.metadata = {"test": True}
+            
+            result = await agent.run("Hello, test!")
+            
+            tracer.add_event("agent_completed", {"output_type": type(result.output).__name__})
+            
+            run.set_result(result)
+            trace_id = run.trace.id
+            
         print(f"\nResult: {result.output}")
         
         print("\n" + "=" * 60)
         print("Trace Summary:")
         print("=" * 60)
-        print_trace(trace.id, str(db_path))
+        print_trace(trace_id, str(db_path))
         
         print("\n" + "=" * 60)
         print("Database Stats:")

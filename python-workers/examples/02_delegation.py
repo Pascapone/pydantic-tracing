@@ -28,30 +28,34 @@ async def main():
         metadata={"example": "multi_agent_delegation"},
     )
     
-    trace = tracer.start_trace(
-        name="orchestrator_example",
-        user_id=deps.user_id,
-        session_id=deps.session_id,
-        request_id=deps.request_id,
-        metadata=deps.metadata,
-    )
-    
-    print(f"\nTrace ID: {trace.id}")
     print("Running orchestrator with sub-agent delegation...\n")
     
     try:
-        result = await orchestrator.run(
-            """I need you to help me with a coding task:
-            1. First, research best practices for Python async programming
-            2. Then, write a simple async function that demonstrates those practices
-            3. Finally, analyze the code structure and provide feedback
+        from tracing import traced_agent
+        
+        with traced_agent(
+            agent_name="orchestrator_example",
+            model="openrouter:minimax/minimax-m2.5",
+            user_id=deps.user_id,
+            session_id=deps.session_id,
+            tracer=tracer
+        ) as run:
+            run.trace.request_id = deps.request_id
+            run.trace.metadata = deps.metadata
             
-            Please coordinate this across your sub-agents.""",
-            deps=deps,
-        )
-        
-        tracer.end_trace()
-        
+            result = await orchestrator.run(
+                """I need you to help me with a coding task:
+                1. First, research best practices for Python async programming
+                2. Then, write a simple async function that demonstrates those practices
+                3. Finally, analyze the code structure and provide feedback
+                
+                Please coordinate this across your sub-agents.""",
+                deps=deps,
+            )
+            
+            run.set_result(result)
+            trace_id = run.trace.id
+            
         print(f"\nTask Result:")
         print(f"  Task: {result.output.task[:100]}...")
         print(f"  Status: {result.output.status.value}")
@@ -63,10 +67,9 @@ async def main():
         print("\n" + "=" * 60)
         print("Trace Summary:")
         print("=" * 60)
-        print_trace(trace.id, str(db_path))
+        print_trace(trace_id, str(db_path))
         
     except Exception as e:
-        tracer.end_trace()
         print(f"Error: {e}")
         raise
 
