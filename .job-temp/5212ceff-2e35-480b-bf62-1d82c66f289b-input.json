@@ -1,0 +1,11 @@
+{
+  "jobId": "5212ceff-2e35-480b-bf62-1d82c66f289b",
+  "payload": {
+    "agent": "research",
+    "prompt": "Dies ist ein Test. Du sollst das Web Search mit einer sehr lange Query verwenden. Mindestens 10 Sätze.",
+    "model": "openrouter:minimax/minimax-m2.5",
+    "type": "agent.run"
+  },
+  "inputPath": "C:\\Users\\pasca\\Coding\\tanstack-python-jobs\\.job-temp\\5212ceff-2e35-480b-bf62-1d82c66f289b-input.json",
+  "outputPath": "C:\\Users\\pasca\\Coding\\tanstack-python-jobs\\.job-temp\\5212ceff-2e35-480b-bf62-1d82c66f289b-output.json"
+}

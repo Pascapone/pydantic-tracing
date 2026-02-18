@@ -47,7 +47,8 @@ src/components/
 ├── jobs/             # Job-related components
 └── tracing/          # Trace viewing components
     ├── TraceTerminal.tsx  # Main three-panel layout
-    ├── TraceTimeline.tsx  # Visual span timeline
+    ├── TraceTimeline.tsx  # Visual span timeline (filters model.request, non-final model.response)
+    ├── SpanNode.tsx       # Individual span renderer (JSON viewer via @uiw/react-json-view)
     └── ...                 # Other trace components
 
 python-workers/

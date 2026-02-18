@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import JsonView from '@uiw/react-json-view';
-import { vscodeTheme } from '@uiw/react-json-view/vscode';
 import type { Span, SpanType, SpanStatus, SpanNodeProps, SpanTypeConfig } from '@/types/tracing';
+import { JsonRenderer } from './JsonRenderer';
 import {
   Brain,
   Bolt,
@@ -14,64 +13,11 @@ import {
   ChevronRight,
   Lightbulb,
   MessageSquare,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
-/**
- * Try to parse a value as JSON. Returns the parsed object if successful,
- * or null if the value is not a JSON string / is already a primitive.
- */
-function tryParseJson(value: unknown): object | null {
-  if (value !== null && typeof value === 'object') return value as object;
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (typeof parsed === 'object' && parsed !== null) return parsed;
-    return null;
-  } catch {
-    return null;
-  }
-}
 
-/**
- * Renders a JSON value with @uiw/react-json-view using the VS Code dark theme.
- * Falls back to a <pre> block for plain strings.
- */
-const JsonOrText = ({
-  value,
-  className = '',
-}: {
-  value: unknown;
-  className?: string;
-}) => {
-  const parsed = tryParseJson(value);
-  if (parsed) {
-    return (
-      <div className={`rounded overflow-auto max-h-96 text-xs ${className}`}>
-        <JsonView
-          value={parsed}
-          style={{
-            ...vscodeTheme,
-            background: 'transparent',
-            fontSize: '12px',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-          }}
-          collapsed={2}
-          displayDataTypes={false}
-          displayObjectSize={false}
-          enableClipboard
-          shortenTextAfterLength={120}
-        />
-      </div>
-    );
-  }
-  return (
-    <pre className={`font-mono text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap overflow-auto max-h-96 ${className}`}>
-      {typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
-    </pre>
-  );
-};
 
 /**
  * Configuration for each span type - icon, colors, and labels
@@ -147,7 +93,7 @@ const spanTypeConfigs: Record<SpanType, SpanTypeConfig> = {
  */
 const SpanIcon = ({ type, className }: { type: SpanType; className?: string }) => {
   const iconProps = { size: 14, className };
-  
+
   switch (type) {
     case 'agent.run':
       return <Brain {...iconProps} />;
@@ -183,14 +129,14 @@ const formatRelativeTime = (currentUs: number, startUs: number, prevUs?: number)
   const minutes = Math.floor(diffMs / 60000);
   const seconds = Math.floor((diffMs % 60000) / 1000);
   const milliseconds = Math.floor(diffMs % 1000);
-  
+
   const baseTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
-  
+
   if (prevUs !== undefined) {
     const deltaMs = Math.round((currentUs - prevUs) / 1000);
     return `${baseTime} (+${deltaMs}ms)`;
   }
-  
+
   return baseTime;
 };
 
@@ -209,7 +155,7 @@ const getStatusStyles = (status: SpanStatus, isActive: boolean): {
       glowClass: '',
     };
   }
-  
+
   if (status === 'OK') {
     return {
       cardClass: 'border-[#0bda57]/30', // matrix-green
@@ -217,7 +163,7 @@ const getStatusStyles = (status: SpanStatus, isActive: boolean): {
       glowClass: '',
     };
   }
-  
+
   // UNSET (active/running)
   if (isActive) {
     return {
@@ -226,7 +172,7 @@ const getStatusStyles = (status: SpanStatus, isActive: boolean): {
       glowClass: 'shadow-[0_0_10px_rgba(17,164,212,0.1)]',
     };
   }
-  
+
   return {
     cardClass: 'border-slate-200 dark:border-slate-700',
     headerClass: 'bg-slate-50 dark:bg-[#151f24]',
@@ -239,14 +185,15 @@ const getStatusStyles = (status: SpanStatus, isActive: boolean): {
  */
 const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) => {
   const { spanType, attributes, name } = span;
-  
+  const [showDetails, setShowDetails] = useState(false);
+
   // Extract content from attributes
   const content = attributes.content || attributes.input || attributes.output || attributes.message;
   const rawToolName = attributes.tool_name || (attributes.tool as Record<string, unknown>)?.name || attributes["tool.name"];
   const toolName = typeof rawToolName === 'string' ? rawToolName : null;
   const toolOutput = attributes.output || attributes.result || attributes["tool.result"];
   const toolArgs = attributes.arguments || attributes.args || attributes["tool.arguments"];
-  
+
   // User input - show as quoted text
   if (spanType === 'user_input' || spanType === 'user.prompt') {
     return (
@@ -255,7 +202,7 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
       </div>
     );
   }
-  
+
   // Tool result - show the returned value
   if (spanType === 'tool.result') {
     return (
@@ -263,19 +210,20 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
         <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-2">
           Returned from {toolName || 'tool'}:
         </div>
-        <JsonOrText value={toolOutput} />
+        <JsonRenderer value={toolOutput} />
       </div>
     );
   }
-  
-  // Tool call - show function signature and output
+
+  // Tool call - show function signature with expandable details
   if (spanType === 'tool.call') {
     const argsRecord = (toolArgs || {}) as Record<string, unknown>;
     const hasArgs = Object.keys(argsRecord).length > 0;
     const displayName = toolName ?? name;
-    
+
     return (
       <>
+        {/* Python function-style signature (always visible) */}
         <div className="p-4 bg-[#0e1116] border-b border-slate-800">
           <code className="font-mono text-xs text-green-400">
             <span className="text-purple-400">def</span>{' '}
@@ -295,6 +243,8 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
             )}
           </code>
         </div>
+
+        {/* Truncated output summary (always visible when output exists) */}
         {toolOutput && (
           <div className="px-4 py-2 bg-slate-50 dark:bg-[#151f24] flex items-center gap-2">
             <span className="text-slate-400">
@@ -306,10 +256,40 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
             </code>
           </div>
         )}
+
+        {/* Show Details toggle */}
+        <button
+          type="button"
+          onClick={() => setShowDetails(!showDetails)}
+          className="w-full px-4 py-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-slate-900/40 hover:bg-slate-800/60 border-t border-slate-700/40 transition-colors"
+        >
+          {showDetails ? <EyeOff size={12} /> : <Eye size={12} />}
+          {showDetails ? 'Hide Details' : 'Show Details'}
+        </button>
+
+        {/* Expanded detail view */}
+        {showDetails && (
+          <div className="border-t border-slate-700/40 bg-[#0e1116]">
+            {/* Input section */}
+            {hasArgs ? (
+              <div className="px-4 pt-3 pb-2">
+                <div className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5">Input</div>
+                <JsonRenderer value={argsRecord} />
+              </div>
+            ) : null}
+            {/* Output section */}
+            {toolOutput && (
+              <div className="px-4 pt-2 pb-3 border-t border-slate-700/30">
+                <div className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-1.5">Output</div>
+                <JsonRenderer value={toolOutput} />
+              </div>
+            )}
+          </div>
+        )}
       </>
     );
   }
-  
+
   // Model reasoning - show thinking process
   if (spanType === 'model.reasoning') {
     const reasoning = attributes.reasoning || attributes["model.reasoning"] || content;
@@ -327,12 +307,12 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
       </div>
     );
   }
-  
+
   // Agent run - content rendered via children spans
   if (spanType === 'agent.run') {
     return <></>;
   }
-  
+
   // Model response - show output (use JSON viewer for structured/final responses)
   if (spanType === 'model.response') {
     const output = attributes.output || attributes.content || content;
@@ -344,14 +324,14 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
             Structured Output
           </div>
         )}
-        <JsonOrText value={output} />
+        <JsonRenderer value={output} />
         {span.status === 'UNSET' && (
           <span className="inline-block w-2 h-4 bg-primary align-middle ml-1 animate-pulse" />
         )}
       </div>
     );
   }
-  
+
   // Default - show attributes
   return (
     <div className="p-4 font-mono text-sm text-slate-600 dark:text-slate-300">
@@ -377,10 +357,10 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
  * - Expandable content area
  * - Status-based styling
  */
-export function SpanNode({ 
-  span, 
-  startTime, 
-  isExpanded = false, 
+export function SpanNode({
+  span,
+  startTime,
+  isExpanded = false,
   onToggle,
   depth = 0,
   forceExpanded,
@@ -401,21 +381,21 @@ export function SpanNode({
       setInternalExpanded(forceExpanded);
     }
   }, [forceExpanded, forceExpandedSignal]);
-  
+
   const config = spanTypeConfigs[span.spanType] || spanTypeConfigs['agent.run'];
   const isActive = span.status === 'UNSET';
   const statusStyles = getStatusStyles(span.status, isActive);
-  
+
   // Calculate relative timestamp
   const relativeTime = formatRelativeTime(span.startTime, startTime);
-  
+
   // Calculate duration if available
-  const duration = span.durationUs 
+  const duration = span.durationUs
     ? `${(span.durationUs / 1000).toFixed(1)}ms`
-    : span.endTime 
+    : span.endTime
       ? `${((span.endTime - span.startTime) / 1000).toFixed(1)}ms`
       : null;
-  
+
   const handleToggle = () => {
     if (onToggle) {
       onToggle();
@@ -423,41 +403,39 @@ export function SpanNode({
       setInternalExpanded(!internalExpanded);
     }
   };
-  
+
   const hasChildren = span.children && span.children.length > 0;
-  
+
   return (
-    <div 
+    <div
       className="relative pl-16 mb-8 group"
       style={{ marginLeft: depth * 24 }}
     >
       {/* Icon circle on timeline */}
-      <div 
-        className={`absolute left-3 top-0 w-6 h-6 rounded-full ${config.bgColor} border-2 ${config.borderColor} z-10 flex items-center justify-center ${
-          isActive ? 'shadow-[0_0_10px_rgba(17,164,212,0.4)]' : ''
-        }`}
+      <div
+        className={`absolute left-3 top-0 w-6 h-6 rounded-full ${config.bgColor} border-2 ${config.borderColor} z-10 flex items-center justify-center ${isActive ? 'shadow-[0_0_10px_rgba(17,164,212,0.4)]' : ''
+          }`}
       >
         <SpanIcon type={span.spanType} className={config.color} />
         {isActive && (
           <span className="absolute w-1.5 h-1.5 rounded-full bg-primary animate-pulse -top-0.5 -right-0.5" />
         )}
       </div>
-      
+
       {/* Content card */}
-      <div 
-        className={`bg-white dark:bg-[#1a262b] border ${statusStyles.cardClass} rounded-sm shadow-sm overflow-hidden transition-all hover:border-opacity-70 ${
-          isActive ? statusStyles.glowClass : ''
-        }`}
+      <div
+        className={`bg-white dark:bg-[#1a262b] border ${statusStyles.cardClass} rounded-sm shadow-sm overflow-hidden transition-all hover:border-opacity-70 ${isActive ? statusStyles.glowClass : ''
+          }`}
       >
         {/* Header */}
-        <div 
+        <div
           className={`px-4 py-2 border-b ${config.borderColor}/20 ${statusStyles.headerClass} flex justify-between items-center cursor-pointer`}
           onClick={handleToggle}
         >
           <span className={`text-xs font-bold ${config.color} uppercase tracking-wider flex items-center gap-2`}>
             {hasChildren && (
-              expanded 
-                ? <ChevronDown size={12} /> 
+              expanded
+                ? <ChevronDown size={12} />
                 : <ChevronRight size={12} />
             )}
             {config.label}
@@ -481,12 +459,12 @@ export function SpanNode({
             </span>
           </div>
         </div>
-        
+
         {/* Content */}
         {(expanded || !hasChildren) && (
           <SpanContent span={span} isExpanded={expanded} />
         )}
-        
+
         {/* Children */}
         {hasChildren && expanded && (
           <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 p-4">

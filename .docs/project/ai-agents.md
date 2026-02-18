@@ -113,12 +113,27 @@ The tracing system captures detailed information about agent execution:
 
 | Type | Description |
 |------|-------------|
-| `agent.run` | Agent execution (run, run_sync) |
+| `agent.run` | Agent execution (run, run_sync) - final result stored in `attributes.output` |
 | `agent.stream` | Streaming agent execution |
 | `tool.call` | Tool function invocation |
-| `model.request` | LLM API request |
-| `model.response` | LLM API response |
+| `tool.result` | Tool return value - rendered with JSON viewer |
+| `model.request` | LLM API request (filtered in UI) |
+| `model.response` | LLM API response - only `:final` shown in UI |
+| `model.reasoning` | Model thinking/reasoning content |
 | `agent.delegation` | Agent-to-agent delegation |
+| `user.prompt` | User input prompt |
+
+### Span Naming Convention
+
+Spans are named `{type}:{subtype}` for identification:
+
+| Pattern | Example | Purpose |
+|---------|---------|---------|
+| `agent.run:{agent_name}` | `agent.run:research` | Identify which agent ran |
+| `tool.call:{tool_name}` | `tool.call:web_search` | Identify which tool was called |
+| `model.response:final` | `model.response:final` | Mark the final structured output |
+
+The `:final` suffix on `model.response` is critical — the UI filters out intermediate streaming chunks and only displays the final response.
 
 ### Quick Example
 
@@ -412,11 +427,39 @@ Access the traces page at `/traces` (requires authentication).
 |-----------|------|-------------|
 | `TraceTerminal` | `src/components/tracing/TraceTerminal.tsx` | Main three-panel layout |
 | `TraceHeader` | `src/components/tracing/TraceHeader.tsx` | Header with stats and controls |
-| `TraceTimeline` | `src/components/tracing/TraceTimeline.tsx` | Visual span timeline |
+| `TraceTimeline` | `src/components/tracing/TraceTimeline.tsx` | Visual span timeline with filtering |
 | `TraceSidebar` | `src/components/tracing/TraceSidebar.tsx` | Trace list sidebar |
 | `TraceLogStream` | `src/components/tracing/TraceLogStream.tsx` | Real-time log stream |
 | `TraceStats` | `src/components/tracing/TraceStats.tsx` | Statistics display |
-| `SpanNode` | `src/components/tracing/SpanNode.tsx` | Individual span renderer |
+| `SpanNode` | `src/components/tracing/SpanNode.tsx` | Individual span renderer with JSON viewer |
+
+### UI Features
+
+#### Timeline Filtering
+
+The `TraceTimeline` component filters spans to reduce noise:
+
+| Span Type | Behavior |
+|-----------|----------|
+| `model.request` | **Filtered out** (redundant with prompt) |
+| `model.response` | Only `:final` kept (streaming chunks hidden) |
+| All others | Shown in timeline |
+
+#### JSON Viewer
+
+Structured outputs are rendered with an interactive JSON tree using `@uiw/react-json-view`:
+
+- **`model.response:final`** — Shows "Structured Output" label with collapsible JSON
+- **`tool.result`** — Shows returned value with collapsible JSON
+- **Collapsible depth** — Default `collapsed={2}` shows top-level keys
+- **Clipboard** — Copy button enabled for values
+- **Theme** — VS Code dark theme with transparent background
+
+#### Expand/Collapse
+
+- **Expand All / Collapse All** button in timeline header
+- Individual spans toggle on header click
+- `model.request` and `model.response` collapsed by default
 
 ### React Hooks
 

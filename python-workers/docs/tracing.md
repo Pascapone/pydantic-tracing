@@ -185,6 +185,11 @@ with traced_agent("research", "openrouter:minimax/minimax-m2.5", user_id="user1"
     span.set_attribute("result.preview", result.output[:100])
 ```
 
+The `traced_agent` decorator automatically:
+- Creates an `agent.run:{name}` span
+- Captures the final result in `attributes.output`
+- Records timing and status
+
 ### traced_tool
 
 Automatically wrap tool calls with tracing:
@@ -333,12 +338,15 @@ count = viewer.export_traces("output.json", user_id="user123", limit=100)
 
 | Type | Constant | Description |
 |------|----------|-------------|
-| `agent.run` | `SpanType.agent_run` | Agent execution (run, run_sync) |
+| `agent.run` | `SpanType.agent_run` | Agent execution (run, run_sync) - stores final result in `attributes.output` |
 | `agent.stream` | `SpanType.agent_stream` | Streaming agent execution |
 | `tool.call` | `SpanType.tool_call` | Tool function invocation |
+| `tool.result` | `SpanType.tool_result` | Tool return value |
 | `model.request` | `SpanType.model_request` | LLM API request |
-| `model.response` | `SpanType.model_response` | LLM API response |
+| `model.response` | `SpanType.model_response` | LLM API response (use `:final` suffix for final output) |
+| `model.reasoning` | `SpanType.model_reasoning` | Model thinking/reasoning |
 | `agent.delegation` | `SpanType.delegation` | Agent-to-agent delegation |
+| `user.prompt` | `SpanType.user_prompt` | User input prompt |
 
 ## Span Kinds
 

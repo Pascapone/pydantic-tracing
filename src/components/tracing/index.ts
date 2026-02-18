@@ -15,6 +15,7 @@ export type { TraceStatsData } from "./TraceStats";
 export { SpanNode } from "./SpanNode";
 export { TraceTimeline } from "./TraceTimeline";
 export { TraceLogStream } from "./TraceLogStream";
+export { JsonRenderer } from "./JsonRenderer";
 
 // Re-export types for convenience
 export type {
