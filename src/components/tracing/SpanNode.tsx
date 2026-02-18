@@ -275,7 +275,9 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
   
   // Agent run - show reasoning/thought
   if (spanType === 'agent.run') {
-    const thought = attributes.thought || attributes.reasoning || content;
+    const thought = (attributes.thought || attributes.reasoning || content) as any;
+    const output = (attributes.output || attributes.result) as any;
+    
     return (
       <div className="p-4 font-mono text-sm text-slate-600 dark:text-slate-300 bg-primary/5 leading-relaxed">
         {thought ? (
@@ -286,6 +288,18 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
           </>
         ) : (
           <span className="text-slate-500 italic">No reasoning captured</span>
+        )}
+        
+        {/* Agent Result Display */}
+        {output && (
+          <div className="mt-4 pt-4 border-t border-primary/20">
+            <span className="text-primary opacity-60 block mb-2">// Final Result</span>
+            <div className="bg-slate-50 dark:bg-[#151f24] p-3 rounded border border-primary/10 font-mono text-xs overflow-auto max-h-80">
+              {typeof output === 'string' 
+                ? output 
+                : JSON.stringify(output, null, 2)}
+            </div>
+          </div>
         )}
       </div>
     );
@@ -342,7 +356,14 @@ export function SpanNode({
   forceExpanded,
   forceExpandedSignal,
 }: SpanNodeProps) {
-  const [internalExpanded, setInternalExpanded] = useState(isExpanded);
+  const [internalExpanded, setInternalExpanded] = useState(() => {
+    if (isExpanded) return true;
+    // Default collapse for model.request and model.response
+    if (span.spanType === 'model.request' || span.spanType === 'model.response') {
+      return false;
+    }
+    return isExpanded;
+  });
   const expanded = onToggle ? isExpanded : internalExpanded;
 
   useEffect(() => {

@@ -43,6 +43,7 @@ async function handleWorkerMessage(
 ): Promise<void> {
   switch (message.type) {
     case "progress":
+      console.log(`[Python Worker ${jobId} PROGRESS]`, message.payload);
       await updateJobProgress(jobId, message.payload as JobProgress);
       break;
     case "log":
@@ -75,7 +76,24 @@ export async function executePythonJob(
 
   await writeFile(inputPath, JSON.stringify(inputData, null, 2));
 
-  const pythonPath = process.env.PYTHON_PATH || "python";
+  // Try to find the python executable in the virtual environment
+  let pythonPath = process.env.PYTHON_PATH;
+
+  if (!pythonPath) {
+    // Check for local venv in python-workers/.venv
+    const venvPythonWindows = join(WORKER_DIR, ".venv", "Scripts", "python.exe");
+    const venvPythonUnix = join(WORKER_DIR, ".venv", "bin", "python");
+
+    if (existsSync(venvPythonWindows)) {
+      pythonPath = venvPythonWindows;
+    } else if (existsSync(venvPythonUnix)) {
+      pythonPath = venvPythonUnix;
+    } else {
+      pythonPath = "python"; // Fallback to system python
+    }
+  }
+
+  console.log(`[Worker] Using Python interpreter: ${pythonPath}`);
 
   return new Promise((resolve, reject) => {
     const workerProcess = spawn(pythonPath, [workerScript, inputPath], {
@@ -106,13 +124,16 @@ export async function executePythonJob(
         if (message) {
           handleWorkerMessage(jobId, message).catch(console.error);
         } else {
+          console.log(`[Python Worker ${jobId} RAW]`, line);
           stdout += line + "\n";
         }
       }
     });
 
     workerProcess.stderr?.on("data", (data: Buffer) => {
-      stderr += data.toString();
+      const text = data.toString();
+      console.error(`[Python Worker ${jobId} STDERR]`, text);
+      stderr += text;
     });
 
     const timeout = payload.timeout ?? 300000; // 5 min default

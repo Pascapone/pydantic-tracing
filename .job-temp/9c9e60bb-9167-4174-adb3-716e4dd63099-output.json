@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "error": "'JobContext' object has no attribute 'error'",
+  "metadata": {
+    "duration_ms": 207,
+    "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\Pasko\\Documents\\projects\\tanstack-python-jobs\\python-workers\\handlers\\agent_trace.py\", line 58, in execute\n    from agents import (\n  File \"C:\\Users\\Pasko\\Documents\\projects\\tanstack-python-jobs\\python-workers\\agents\\__init__.py\", line 21, in <module>\n    from .orchestrator import OrchestratorAgent, create_orchestrator\n  File \"C:\\Users\\Pasko\\Documents\\projects\\tanstack-python-jobs\\python-workers\\agents\\orchestrator.py\", line 6, in <module>\n    from pydantic_ai import Agent, RunContext, ModelRetry\nModuleNotFoundError: No module named 'pydantic_ai'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"C:\\Users\\Pasko\\Documents\\projects\\tanstack-python-jobs\\python-workers\\worker.py\", line 423, in execute\n    result = await handler.execute(ctx, payload)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\Pasko\\Documents\\projects\\tanstack-python-jobs\\python-workers\\handlers\\agent_trace.py\", line 253, in execute\n    ctx.error(f\"Agent execution failed: {error_type}: {error_message}\")\n    ^^^^^^^^^\nAttributeError: 'JobContext' object has no attribute 'error'\n"
+  }
+}

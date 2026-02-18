@@ -54,6 +54,9 @@ class JobContext:
             },
         )
 
+    def error(self, message: str) -> None:
+        self.log(message, level="error")
+
     def _send_message(self, msg_type: str, payload: Any) -> None:
         message = {
             "type": msg_type,
@@ -437,7 +440,8 @@ class JobExecutor:
 
             return output
 
-        except Exception as e:
+        except BaseException as e:
+            traceback.print_exc(file=sys.stderr)
             duration = time.time() - start_time
             return {
                 "success": False,

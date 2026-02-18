@@ -1,0 +1,25 @@
+Starting verification with failing agent...
+[Python Worker test-agent-job-fail] {
+  level: 'info',
+  message: 'Starting job execution: agent.run',
+  metadata: null
+}
+[Python Worker test-agent-job-fail PROGRESS] {
+  percentage: 10,
+  message: 'Initializing research agent...',
+  step: 'init'
+}
+SqliteError: FOREIGN KEY constraint failed
+    at PreparedQuery.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\better-sqlite3\session.ts:132:20)
+    at QueryPromise.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:398:26)
+    at QueryPromise.execute (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:414:53)
+    at QueryPromise.then (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\query-promise.ts:31:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'SQLITE_CONSTRAINT_FOREIGNKEY'
+}
+[Python Worker test-agent-job-fail] {
+  level: 'error',
+  message: "Agent execution failed: ModuleNotFoundError: No module named 'pydantic_ai'",
+  metadata: null
+}
+[Python Worker test-agent-job-fail] { level: 'info', message: 'Job completed in 0.19s', metadata: null }

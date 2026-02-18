@@ -1,0 +1,11 @@
+{
+  "jobId": "ff015b4b-8216-4ea8-9883-caa43fecb1bc",
+  "payload": {
+    "agent": "research",
+    "prompt": "Research ai agents.",
+    "model": "openrouter:minimax/minimax-m2.5",
+    "type": "agent.run"
+  },
+  "inputPath": "C:\\Users\\Pasko\\Documents\\projects\\tanstack-python-jobs\\.job-temp\\ff015b4b-8216-4ea8-9883-caa43fecb1bc-input.json",
+  "outputPath": "C:\\Users\\Pasko\\Documents\\projects\\tanstack-python-jobs\\.job-temp\\ff015b4b-8216-4ea8-9883-caa43fecb1bc-output.json"
+}

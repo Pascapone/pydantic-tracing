@@ -1,0 +1,40 @@
+Starting verification with failing agent...
+[Python Worker test-agent-job-fail] {
+  level: 'info',
+  message: 'Starting job execution: agent.run',
+  metadata: null
+}
+[Python Worker test-agent-job-fail PROGRESS] {
+  percentage: 10,
+  message: 'Initializing research agent...',
+  step: 'init'
+}
+SqliteError: FOREIGN KEY constraint failed
+    at PreparedQuery.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\better-sqlite3\session.ts:132:20)
+    at QueryPromise.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:398:26)
+    at QueryPromise.execute (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:414:53)
+    at QueryPromise.then (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\query-promise.ts:31:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'SQLITE_CONSTRAINT_FOREIGNKEY'
+}
+[Python Worker test-agent-job-fail STDERR] Traceback (most recent call last):
+
+[Python Worker test-agent-job-fail STDERR]   File "C:\Users\Pasko\Documents\projects\tanstack-python-jobs\python-workers\handlers\agent_trace.py", line 58, in execute
+    from agents import (
+  File "C:\Users\Pasko\Documents\projects\tanstack-python-jobs\python-workers\agents\__init__.py", line 21, in <module>
+    from .orchestrator import OrchestratorAgent, create_orchestrator
+  File "C:\Users\Pasko\Documents\projects\tanstack-python-jobs\python-workers\agents\orchestrator.py", line 6, in <module>
+    from pydantic_ai import Agent, RunContext, ModelRetry
+ModuleNotFoundError: No module named 'pydantic_ai'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Pasko\Documents\projects\tanstack-python-jobs\python-workers\worker.py", line 423, in execute
+    result = await handler.execute(ctx, payload)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Pasko\Documents\projects\tanstack-python-jobs\python-workers\handlers\agent_trace.py", line 253, in execute
+    ctx.error(f"Agent execution failed: {error_type}: {error_message}")
+    ^^^^^^^^^
+AttributeError: 'JobContext' object has no attribute 'error'
+

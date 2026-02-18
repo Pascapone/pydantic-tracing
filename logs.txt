@@ -1,0 +1,34 @@
+Starting verification...
+[Python Worker test-job-id RAW] DEBUG: RAW STDOUT CHECK FROM PYTHON
+[Python Worker test-job-id STDERR] DEBUG: RAW STDERR CHECK FROM PYTHON
+
+[Python Worker test-job-id] {
+  level: 'info',
+  message: 'Starting job execution: custom',
+  metadata: null
+}
+SqliteError: FOREIGN KEY constraint failed
+    at PreparedQuery.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\better-sqlite3\session.ts:132:20)
+    at QueryPromise.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:398:26)
+    at QueryPromise.execute (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:414:53)
+    at QueryPromise.then (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\query-promise.ts:31:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'SQLITE_CONSTRAINT_FOREIGNKEY'
+}
+SqliteError: FOREIGN KEY constraint failed
+    at PreparedQuery.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\better-sqlite3\session.ts:132:20)
+    at QueryPromise.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:398:26)
+    at QueryPromise.execute (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:414:53)
+    at QueryPromise.then (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\query-promise.ts:31:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'SQLITE_CONSTRAINT_FOREIGNKEY'
+}
+SqliteError: FOREIGN KEY constraint failed
+    at PreparedQuery.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\better-sqlite3\session.ts:132:20)
+    at QueryPromise.run (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:398:26)
+    at QueryPromise.execute (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\sqlite-core\query-builders\insert.ts:414:53)
+    at QueryPromise.then (C:\Users\Pasko\Documents\projects\tanstack-python-jobs\node_modules\src\query-promise.ts:31:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'SQLITE_CONSTRAINT_FOREIGNKEY'
+}
+[Python Worker test-job-id] { level: 'info', message: 'Job completed in 1.21s', metadata: null }

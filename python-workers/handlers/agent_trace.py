@@ -221,6 +221,9 @@ class AgentTraceHandler(BaseHandler):
             agent_span.set_attribute("usage.requests", total_usage["requests"])
             agent_span.set_attribute("usage.tool_calls", total_usage["tool_calls"])
             agent_span.set_attribute("trace.detail_span_count", stream_state["detail_spans"])
+            
+            if output_data is not None:
+                agent_span.set_attribute("output", self._serialize_for_trace(output_data))
 
             tracer.add_event("agent_complete", {"status": "success"})
 
