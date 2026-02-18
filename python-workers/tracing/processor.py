@@ -281,3 +281,163 @@ class traced_tool:
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if self.span:
             self.tracer.end_span(self.span)
+
+
+class traced_delegation:
+    """
+    Context manager for agent delegation with nested tracing.
+    
+    Creates an agent.delegation span that becomes the parent for all
+    spans created by the delegated sub-agent.
+    
+    Usage:
+        with traced_delegation("research", "What is pydantic-ai?") as span:
+            result = await research_agent.run(query)
+            span.set_attribute("result.summary", result.output.summary)
+    """
+    
+    def __init__(
+        self,
+        target_agent: str,
+        query: str,
+        tracer: Optional[PydanticAITracer] = None,
+    ):
+        self.target_agent = target_agent
+        self.query = query
+        self.tracer = tracer or get_tracer()
+        self.span: Optional[Span] = None
+    
+    def __enter__(self) -> Span:
+        self.span = self.tracer.start_span(
+            name=f"agent.delegation:{self.target_agent}",
+            kind=SpanKind.internal,
+            span_type=SpanType.delegation,
+            attributes={
+                "delegation.target_agent": self.target_agent,
+                "delegation.query": self.query[:500] if self.query else "",
+            },
+        )
+        return self.span
+    
+    def set_result(self, result: Any) -> None:
+        """Set the result of the delegation."""
+        if not self.span:
+            return
+        
+        output = result
+        if hasattr(result, "output"):
+            output = result.output
+        
+        serialized = self._serialize_value(output)
+        self.span.set_attribute("delegation.result", serialized)
+        
+        if hasattr(output, "__class__"):
+            self.span.set_attribute("result.type", output.__class__.__name__)
+    
+    def _serialize_value(self, value: Any) -> Any:
+        try:
+            if hasattr(value, "model_dump"):
+                return value.model_dump()
+            if hasattr(value, "__dict__"):
+                return str(value)[:500]
+            return value
+        except Exception:
+            return str(value)[:500]
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if not self.span:
+            return
+        
+        if exc_type:
+            self.span.status = SpanStatus.error
+            self.span.status_message = str(exc_val)
+            self.span.set_attribute("delegation.error", str(exc_val))
+        
+        self.tracer.end_span(self.span)
+
+
+class traced_agent_run:
+    """
+    Context manager for sub-agent runs inside a delegation context.
+    
+    Creates an agent.run span WITHOUT starting a new trace.
+    This is used by sub-agents when they run as part of a delegation.
+    
+    Usage:
+        with traced_agent_run("research", "openrouter:minimax/minimax-m2.5") as run:
+            result = await agent.run(query)
+            run.set_result(result)
+    """
+    
+    def __init__(
+        self,
+        agent_name: str,
+        model: str,
+        tracer: Optional[PydanticAITracer] = None,
+    ):
+        self.agent_name = agent_name
+        self.model = model
+        self.tracer = tracer or get_tracer()
+        self.span: Optional[Span] = None
+    
+    def __enter__(self) -> "traced_agent_run":
+        self.span = self.tracer.start_span(
+            name=f"agent.run:{self.agent_name}",
+            kind=SpanKind.internal,
+            span_type=SpanType.agent_run,
+            attributes={
+                "agent.name": self.agent_name,
+                "agent.model": self.model,
+            },
+        )
+        return self
+    
+    def set_result(self, result: Any) -> None:
+        """Set the result of the agent run."""
+        if not self.span:
+            return
+        
+        output = result
+        if hasattr(result, "output"):
+            output = result.output
+        elif hasattr(result, "data"):
+            output = result.data
+        
+        serialized = self._serialize_value(output)
+        self.span.set_attribute("output", serialized)
+        
+        if hasattr(output, "__class__"):
+            self.span.set_attribute("result.type", output.__class__.__name__)
+        
+        final_span = self.tracer.start_span(
+            name="model.response:final",
+            kind=SpanKind.client,
+            span_type=SpanType.model_response,
+            parent_id=self.span.id,
+            activate=False,
+            attributes={
+                "output": serialized,
+                "model.response": str(output)[:1000] if output else "",
+            },
+        )
+        self.tracer.end_span(final_span)
+    
+    def _serialize_value(self, value: Any) -> Any:
+        try:
+            if hasattr(value, "model_dump"):
+                return value.model_dump()
+            if hasattr(value, "__dict__"):
+                return str(value)[:500]
+            return value
+        except Exception:
+            return str(value)[:500]
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if not self.span:
+            return
+        
+        if exc_type:
+            self.span.status = SpanStatus.error
+            self.span.status_message = str(exc_val)
+        
+        self.tracer.end_span(self.span)

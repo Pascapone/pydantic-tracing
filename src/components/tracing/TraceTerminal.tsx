@@ -78,6 +78,7 @@ function adaptSpan(span: Span): TimelineSpan {
     durationUs: span.duration_us || undefined,
     attributes: span.attributes,
     status: span.status,
+    statusMessage: span.status_message || undefined,
     events: span.events,
     children: span.children?.map(adaptSpan),
   };
@@ -93,7 +94,7 @@ function spansToLogs(trace: Trace | null): LogEntry[] {
 
   const logs: LogEntry[] = [];
   const allSpans = flattenSpans(trace.spans).sort((a, b) => a.start_time - b.start_time);
-  
+
   // Add trace start log
   logs.push({
     id: `trace-start-${trace.id}`,
@@ -109,7 +110,7 @@ function spansToLogs(trace: Trace | null): LogEntry[] {
   // Add logs for each span
   allSpans.forEach((span) => {
     const level = span.status === "ERROR" ? "ERROR" : span.status === "OK" ? "SUCCESS" : "INFO";
-    
+
     // Span start
     logs.push({
       id: `span-start-${span.id}`,
@@ -179,7 +180,7 @@ export function TraceTerminal({
   const [searchValue, setSearchValue] = useState("");
   const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>(initialTraceId);
   const [isLogPaused, setIsLogPaused] = useState(false);
-  
+
   // Track WebSocket updates separately to merge with polled traces
   const [wsTraces, setWsTraces] = useState<Map<string, Trace>>(new Map());
 
@@ -214,12 +215,12 @@ export function TraceTerminal({
   // WebSocket updates take precedence for traces that exist in both
   const mergedTraces = useMemo(() => {
     const traceMap = new Map<string, Trace>();
-    
+
     // Start with polled traces
     for (const trace of traces) {
       traceMap.set(trace.id, trace);
     }
-    
+
     // Overlay WebSocket updates (these have priority)
     for (const [id, trace] of wsTraces) {
       // Only use WebSocket trace if it doesn't exist in polled data,
@@ -228,7 +229,7 @@ export function TraceTerminal({
         traceMap.set(id, trace);
       }
     }
-    
+
     // Convert back to array and sort by started_at
     return Array.from(traceMap.values()).sort(
       (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
@@ -297,10 +298,10 @@ export function TraceTerminal({
   // Handle re-run
   const handleRerun = useCallback(async () => {
     if (!trace) return;
-    
+
     // Extract agent type from trace name
     const agentType = trace.name.replace("agent_", "") as "research" | "coding" | "analysis" | "orchestrator";
-    
+
     // Find original prompt from first span
     const firstSpan = trace.spans?.[0];
     const prompt = (firstSpan?.attributes?.prompt as string) || "Rerun agent";

@@ -11,6 +11,8 @@ from .schemas import (
 from .research import create_research_agent
 from .coding import create_coding_agent
 from .analysis import create_analysis_agent
+from tracing import get_tracer, traced_delegation, traced_agent_run
+from tracing.spans import SpanKind, SpanType
 
 
 OrchestratorAgent = Agent[AgentDeps, TaskResult]
@@ -71,33 +73,44 @@ Guidelines:
         """
         start = time.time()
         research_agent = _get_or_create_agent("research", agent.model if agent.model else model)
+        tracer = get_tracer()
+        model_str = str(agent.model) if agent.model else model
         
-        try:
-            result = await research_agent.run(
-                query,
-                deps=ctx.deps,
-                usage=ctx.usage,
-            )
-            duration_ms = int((time.time() - start) * 1000)
-            
-            report = result.output
-            return str({
-                "status": "completed",
-                "agent_type": "research",
-                "duration_ms": duration_ms,
-                "summary": report.summary,
-                "findings": report.key_findings,
-                "sources_count": len(report.sources),
-                "confidence": report.confidence,
-            })
-        except Exception as e:
-            duration_ms = int((time.time() - start) * 1000)
-            return str({
-                "status": "failed",
-                "agent_type": "research",
-                "duration_ms": duration_ms,
-                "error": str(e),
-            })
+        with traced_delegation("research", query, tracer=tracer) as delegation_span:
+            with traced_agent_run("research", model_str, tracer=tracer) as run:
+                try:
+                    result = await research_agent.run(
+                        query,
+                        deps=ctx.deps,
+                        usage=ctx.usage,
+                    )
+                    duration_ms = int((time.time() - start) * 1000)
+                    
+                    report = result.output
+                    delegation_span.set_attribute("result.status", "completed")
+                    delegation_span.set_attribute("result.summary", report.summary[:200] if report.summary else "")
+                    delegation_span.set_attribute("result.confidence", report.confidence)
+                    run.set_result(result)
+                    
+                    return str({
+                        "status": "completed",
+                        "agent_type": "research",
+                        "duration_ms": duration_ms,
+                        "summary": report.summary,
+                        "findings": report.key_findings,
+                        "sources_count": len(report.sources),
+                        "confidence": report.confidence,
+                    })
+                except Exception as e:
+                    duration_ms = int((time.time() - start) * 1000)
+                    delegation_span.set_attribute("result.status", "failed")
+                    delegation_span.set_attribute("result.error", str(e))
+                    return str({
+                        "status": "failed",
+                        "agent_type": "research",
+                        "duration_ms": duration_ms,
+                        "error": str(e),
+                    })
     
     @agent.tool
     async def delegate_coding(
@@ -117,33 +130,45 @@ Guidelines:
         """
         start = time.time()
         coding_agent = _get_or_create_agent("coding", agent.model if agent.model else model)
+        tracer = get_tracer()
+        model_str = str(agent.model) if agent.model else model
         
-        try:
-            result = await coding_agent.run(
-                f"Language: {language}\nTask: {task}",
-                deps=ctx.deps,
-                usage=ctx.usage,
-            )
-            duration_ms = int((time.time() - start) * 1000)
-            
-            code_result = result.output
-            return str({
-                "status": "completed",
-                "agent_type": "coding",
-                "duration_ms": duration_ms,
-                "files_count": len(code_result.files),
-                "explanation": code_result.explanation,
-                "suggestions": code_result.suggestions,
-                "executed": code_result.execution is not None,
-            })
-        except Exception as e:
-            duration_ms = int((time.time() - start) * 1000)
-            return str({
-                "status": "failed",
-                "agent_type": "coding",
-                "duration_ms": duration_ms,
-                "error": str(e),
-            })
+        with traced_delegation("coding", task, tracer=tracer) as delegation_span:
+            delegation_span.set_attribute("coding.language", language)
+            with traced_agent_run("coding", model_str, tracer=tracer) as run:
+                try:
+                    result = await coding_agent.run(
+                        f"Language: {language}\nTask: {task}",
+                        deps=ctx.deps,
+                        usage=ctx.usage,
+                    )
+                    duration_ms = int((time.time() - start) * 1000)
+                    
+                    code_result = result.output
+                    delegation_span.set_attribute("result.status", "completed")
+                    delegation_span.set_attribute("result.files_count", len(code_result.files))
+                    delegation_span.set_attribute("result.executed", code_result.execution is not None)
+                    run.set_result(result)
+                    
+                    return str({
+                        "status": "completed",
+                        "agent_type": "coding",
+                        "duration_ms": duration_ms,
+                        "files_count": len(code_result.files),
+                        "explanation": code_result.explanation,
+                        "suggestions": code_result.suggestions,
+                        "executed": code_result.execution is not None,
+                    })
+                except Exception as e:
+                    duration_ms = int((time.time() - start) * 1000)
+                    delegation_span.set_attribute("result.status", "failed")
+                    delegation_span.set_attribute("result.error", str(e))
+                    return str({
+                        "status": "failed",
+                        "agent_type": "coding",
+                        "duration_ms": duration_ms,
+                        "error": str(e),
+                    })
     
     @agent.tool
     async def delegate_analysis(
@@ -163,32 +188,44 @@ Guidelines:
         """
         start = time.time()
         analysis_agent = _get_or_create_agent("analysis", agent.model if agent.model else model)
+        tracer = get_tracer()
+        model_str = str(agent.model) if agent.model else model
         
-        try:
-            result = await analysis_agent.run(
-                f"Analysis type: {analysis_type}\nData: {data_description}",
-                deps=ctx.deps,
-                usage=ctx.usage,
-            )
-            duration_ms = int((time.time() - start) * 1000)
-            
-            analysis_result = result.output
-            return str({
-                "status": "completed",
-                "agent_type": "analysis",
-                "duration_ms": duration_ms,
-                "data_type": analysis_result.data_type,
-                "row_count": analysis_result.row_count,
-                "insights": analysis_result.insights,
-                "anomalies_count": len(analysis_result.anomalies),
-            })
-        except Exception as e:
-            duration_ms = int((time.time() - start) * 1000)
-            return str({
-                "status": "failed",
-                "agent_type": "analysis",
-                "duration_ms": duration_ms,
-                "error": str(e),
-            })
+        with traced_delegation("analysis", data_description, tracer=tracer) as delegation_span:
+            delegation_span.set_attribute("analysis.type", analysis_type)
+            with traced_agent_run("analysis", model_str, tracer=tracer) as run:
+                try:
+                    result = await analysis_agent.run(
+                        f"Analysis type: {analysis_type}\nData: {data_description}",
+                        deps=ctx.deps,
+                        usage=ctx.usage,
+                    )
+                    duration_ms = int((time.time() - start) * 1000)
+                    
+                    analysis_result = result.output
+                    delegation_span.set_attribute("result.status", "completed")
+                    delegation_span.set_attribute("result.data_type", analysis_result.data_type)
+                    delegation_span.set_attribute("result.row_count", analysis_result.row_count)
+                    run.set_result(result)
+                    
+                    return str({
+                        "status": "completed",
+                        "agent_type": "analysis",
+                        "duration_ms": duration_ms,
+                        "data_type": analysis_result.data_type,
+                        "row_count": analysis_result.row_count,
+                        "insights": analysis_result.insights,
+                        "anomalies_count": len(analysis_result.anomalies),
+                    })
+                except Exception as e:
+                    duration_ms = int((time.time() - start) * 1000)
+                    delegation_span.set_attribute("result.status", "failed")
+                    delegation_span.set_attribute("result.error", str(e))
+                    return str({
+                        "status": "failed",
+                        "agent_type": "analysis",
+                        "duration_ms": duration_ms,
+                        "error": str(e),
+                    })
     
     return agent

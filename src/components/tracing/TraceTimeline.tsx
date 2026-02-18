@@ -198,8 +198,10 @@ export function TraceTimeline({
               key={span.id}
               span={span}
               startTime={startTime}
-              forceExpanded={expandAll}
+              forceExpanded={expandSignal > 0 ? expandAll : undefined}
               forceExpandedSignal={expandSignal}
+              forceContentExpanded={expandSignal > 0 ? expandAll : undefined}
+              forceContentExpandedSignal={expandSignal}
             />
           ))}
           

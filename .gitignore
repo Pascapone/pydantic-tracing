@@ -15,3 +15,4 @@ todos.json
 sqlite.db
 drizzle/
 .venv
+__pycache__/

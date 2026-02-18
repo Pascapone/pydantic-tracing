@@ -33,6 +33,7 @@ export interface Span {
   duration_us: number | null;
   attributes: Record<string, unknown>;
   status: TraceStatus;
+  status_message?: string;
   events: SpanEvent[];
   children?: Span[];
 }

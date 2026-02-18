@@ -194,11 +194,33 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
   const toolOutput = attributes.output || attributes.result || attributes["tool.result"];
   const toolArgs = attributes.arguments || attributes.args || attributes["tool.arguments"];
 
+  // Error Banner - show for any span with ERROR status
+  const errorBanner = span.status === 'ERROR' ? (
+    <div className="mx-4 mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-xs">
+      <div className="flex items-center gap-2 font-semibold text-red-500 mb-1">
+        <span className="material-symbols-outlined text-sm">error</span>
+        Error
+      </div>
+      {span.statusMessage && (
+        <div className="font-mono text-red-400 mb-2">{span.statusMessage}</div>
+      )}
+      {span.events.filter(e => e.name === 'exception').map((e, i) => (
+        <div key={i} className="mt-2 pt-2 border-t border-red-500/10">
+          <div className="font-semibold text-red-400">{(e.attributes.type as string) || 'Exception'}</div>
+          <div className="font-mono text-slate-400">{e.attributes.message as string}</div>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   // User input - show as quoted text
   if (spanType === 'user_input' || spanType === 'user.prompt') {
     return (
-      <div className="p-4 font-mono text-sm text-slate-700 dark:text-slate-300">
-        "{typeof content === 'string' ? content : JSON.stringify(content)}"
+      <div className="flex flex-col">
+        {errorBanner}
+        <div className="p-4 font-mono text-sm text-slate-700 dark:text-slate-300">
+          "{typeof content === 'string' ? content : JSON.stringify(content)}"
+        </div>
       </div>
     );
   }
@@ -206,11 +228,14 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
   // Tool result - show the returned value
   if (spanType === 'tool.result') {
     return (
-      <div className="p-4 bg-green-500/5 border-t border-green-500/20">
-        <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-2">
-          Returned from {toolName || 'tool'}:
+      <div className="flex flex-col">
+        {errorBanner}
+        <div className="p-4 bg-green-500/5 border-t border-green-500/20">
+          <div className="text-xs font-medium text-green-600 dark:text-green-400 mb-2">
+            Returned from {toolName || 'tool'}:
+          </div>
+          <JsonRenderer value={toolOutput} />
         </div>
-        <JsonRenderer value={toolOutput} />
       </div>
     );
   }
@@ -246,7 +271,7 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
 
         {/* Truncated output summary (always visible when output exists) */}
         {toolOutput && (
-          <div className="px-4 py-2 bg-slate-50 dark:bg-[#151f24] flex items-center gap-2">
+          <div className="px-4 py-2 bg-slate-50 dark:bg-surface-dark flex items-center gap-2">
             <span className="text-slate-400">
               <ArrowDownToLine size={14} />
             </span>
@@ -270,7 +295,6 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
         {/* Expanded detail view */}
         {showDetails && (
           <div className="border-t border-slate-700/40 bg-[#0e1116]">
-            {/* Input section */}
             {hasArgs ? (
               <div className="px-4 pt-3 pb-2">
                 <div className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5">Input</div>
@@ -278,7 +302,7 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
               </div>
             ) : null}
             {/* Output section */}
-            {toolOutput && (
+            {toolOutput != null && (
               <div className="px-4 pt-2 pb-3 border-t border-slate-700/30">
                 <div className="text-[10px] font-semibold text-green-400 uppercase tracking-wider mb-1.5">Output</div>
                 <JsonRenderer value={toolOutput} />
@@ -286,6 +310,7 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
             )}
           </div>
         )}
+        {errorBanner}
       </>
     );
   }
@@ -294,23 +319,62 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
   if (spanType === 'model.reasoning') {
     const reasoning = attributes.reasoning || attributes["model.reasoning"] || content;
     return (
-      <div className="p-4 font-mono text-sm text-slate-600 dark:text-slate-300 bg-amber-500/5 leading-relaxed">
-        {reasoning ? (
-          <div className="whitespace-pre-wrap">
-            <span className="text-amber-500 opacity-60">// Model reasoning</span>
-            <br />
-            {typeof reasoning === 'string' ? reasoning : JSON.stringify(reasoning, null, 2)}
-          </div>
-        ) : (
-          <span className="text-slate-500 italic">No reasoning captured</span>
-        )}
+      <div className="flex flex-col">
+        {errorBanner}
+        <div className="p-4 font-mono text-sm text-slate-600 dark:text-slate-300 bg-amber-500/5 leading-relaxed">
+          {reasoning ? (
+            <div className="whitespace-pre-wrap">
+              <span className="text-amber-500 opacity-60">// Model reasoning</span>
+              <br />
+              {typeof reasoning === 'string' ? reasoning : JSON.stringify(reasoning, null, 2)}
+            </div>
+          ) : (
+            <span className="text-slate-500 italic">No reasoning captured</span>
+          )}
+        </div>
       </div>
     );
   }
 
   // Agent run - content rendered via children spans
   if (spanType === 'agent.run') {
-    return <></>;
+    return <>{errorBanner}</>;
+  }
+
+  // Agent delegation - show delegation info with target agent
+  if (spanType === 'agent.delegation') {
+    const targetAgent = attributes["delegation.target_agent"] as string;
+    const query = attributes["delegation.query"] as string;
+    const resultStatus = attributes["result.status"] as string;
+    
+    return (
+      <>
+        {errorBanner}
+        <div className="p-4 border-b border-orange-500/20 bg-orange-500/5">
+          <div className="flex items-center gap-2 mb-2">
+            <GitBranch size={14} className="text-orange-500" />
+            <span className="text-sm font-medium text-orange-500">Delegated to:</span>
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              {targetAgent || 'unknown'} agent
+            </span>
+            {resultStatus && (
+              <span className={`ml-2 px-2 py-0.5 text-[10px] font-bold rounded ${
+                resultStatus === 'completed' 
+                  ? 'bg-green-500/20 text-green-500' 
+                  : 'bg-red-500/20 text-red-500'
+              }`}>
+                {resultStatus.toUpperCase()}
+              </span>
+            )}
+          </div>
+          {query && (
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono italic line-clamp-2">
+              "{query}"
+            </div>
+          )}
+        </div>
+      </>
+    );
   }
 
   // Model response - show output (use JSON viewer for structured/final responses)
@@ -319,8 +383,9 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
     const isFinal = name.includes(':final');
     return (
       <div className="p-4">
+        {errorBanner}
         {isFinal && (
-          <div className="text-xs font-semibold text-[#0bda57] mb-2 uppercase tracking-wider">
+          <div className="text-xs font-semibold text-matrix-green mb-2 uppercase tracking-wider">
             Structured Output
           </div>
         )}
@@ -334,16 +399,19 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
 
   // Default - show attributes
   return (
-    <div className="p-4 font-mono text-sm text-slate-600 dark:text-slate-300">
-      {isExpanded ? (
-        <pre className="whitespace-pre-wrap overflow-auto text-xs">
-          {JSON.stringify(attributes, null, 2)}
-        </pre>
-      ) : (
-        <span className="text-slate-500 italic">
-          {name} - {Object.keys(attributes).length} attributes
-        </span>
-      )}
+    <div className="flex flex-col">
+      {errorBanner}
+      <div className="p-4 font-mono text-sm text-slate-600 dark:text-slate-300">
+        {isExpanded ? (
+          <pre className="whitespace-pre-wrap overflow-auto text-xs">
+            {JSON.stringify(attributes, null, 2)}
+          </pre>
+        ) : (
+          <span className="text-slate-500 italic">
+            {name} - {Object.keys(attributes).length} attributes
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -365,22 +433,39 @@ export function SpanNode({
   depth = 0,
   forceExpanded,
   forceExpandedSignal,
+  forceContentExpanded,
+  forceContentExpandedSignal,
 }: SpanNodeProps) {
-  const [internalExpanded, setInternalExpanded] = useState(() => {
+  const [internalChildrenExpanded, setInternalChildrenExpanded] = useState(() => {
+    if (typeof forceExpanded === 'boolean') return forceExpanded;
     if (isExpanded) return true;
-    // Default collapse for model.request and model.response
+    // agent.run and agent.delegation show content via children, so expand by default
+    if (span.spanType === 'agent.run' || span.spanType === 'agent.delegation') {
+      return true;
+    }
     if (span.spanType === 'model.request' || span.spanType === 'model.response') {
       return false;
     }
     return isExpanded;
   });
-  const expanded = onToggle ? isExpanded : internalExpanded;
+  const [isContentExpanded, setIsContentExpanded] = useState(() => {
+    if (typeof forceContentExpanded === 'boolean') return forceContentExpanded;
+    return true;
+  });
+
+  const childrenExpanded = onToggle ? isExpanded : internalChildrenExpanded;
 
   useEffect(() => {
-    if (typeof forceExpanded === 'boolean') {
-      setInternalExpanded(forceExpanded);
+    if (typeof forceExpanded === 'boolean' && forceExpanded !== internalChildrenExpanded) {
+      setInternalChildrenExpanded(forceExpanded);
     }
   }, [forceExpanded, forceExpandedSignal]);
+
+  useEffect(() => {
+    if (typeof forceContentExpanded === 'boolean' && forceContentExpanded !== isContentExpanded) {
+      setIsContentExpanded(forceContentExpanded);
+    }
+  }, [forceContentExpanded, forceContentExpandedSignal]);
 
   const config = spanTypeConfigs[span.spanType] || spanTypeConfigs['agent.run'];
   const isActive = span.status === 'UNSET';
@@ -397,23 +482,35 @@ export function SpanNode({
       : null;
 
   const handleToggle = () => {
-    if (onToggle) {
-      onToggle();
-    } else {
-      setInternalExpanded(!internalExpanded);
+    setIsContentExpanded(!isContentExpanded);
+    if (hasChildren) {
+      if (onToggle) {
+        onToggle();
+      } else {
+        setInternalChildrenExpanded(!childrenExpanded);
+      }
     }
   };
 
   const hasChildren = span.children && span.children.length > 0;
+  const isNested = depth > 0;
 
   return (
     <div
-      className="relative pl-16 mb-8 group"
-      style={{ marginLeft: depth * 24 }}
+      className="relative mb-6 group"
+      style={{ paddingLeft: depth > 0 ? 24 : 16 }}
     >
+      {/* Vertical connecting line for nested items */}
+      {isNested && (
+        <div 
+          className="absolute left-0 top-0 w-0.5 bg-slate-300 dark:bg-slate-700"
+          style={{ height: '100%' }}
+        />
+      )}
+
       {/* Icon circle on timeline */}
       <div
-        className={`absolute left-3 top-0 w-6 h-6 rounded-full ${config.bgColor} border-2 ${config.borderColor} z-10 flex items-center justify-center ${isActive ? 'shadow-[0_0_10px_rgba(17,164,212,0.4)]' : ''
+        className={`absolute ${isNested ? 'left-[-11px]' : 'left-3'} top-0 w-6 h-6 rounded-full ${config.bgColor} border-2 ${config.borderColor} z-10 flex items-center justify-center ${isActive ? 'shadow-[0_0_10px_rgba(17,164,212,0.4)]' : ''
           }`}
       >
         <SpanIcon type={span.spanType} className={config.color} />
@@ -429,15 +526,14 @@ export function SpanNode({
       >
         {/* Header */}
         <div
-          className={`px-4 py-2 border-b ${config.borderColor}/20 ${statusStyles.headerClass} flex justify-between items-center cursor-pointer`}
+          className={`px-4 py-2 ${isContentExpanded ? `border-b ${config.borderColor}/20` : ''} ${statusStyles.headerClass} flex justify-between items-center cursor-pointer`}
           onClick={handleToggle}
         >
           <span className={`text-xs font-bold ${config.color} uppercase tracking-wider flex items-center gap-2`}>
-            {hasChildren && (
-              expanded
-                ? <ChevronDown size={12} />
-                : <ChevronRight size={12} />
-            )}
+            {isContentExpanded
+              ? <ChevronDown size={12} />
+              : <ChevronRight size={12} />
+            }
             {config.label}
             {span.name && span.spanType !== 'user_input' && (
               <span className="font-normal text-slate-500 dark:text-slate-400 normal-case">
@@ -461,23 +557,29 @@ export function SpanNode({
         </div>
 
         {/* Content */}
-        {(expanded || !hasChildren) && (
-          <SpanContent span={span} isExpanded={expanded} />
+        {isContentExpanded && (
+          <SpanContent span={span} isExpanded={isContentExpanded} />
         )}
 
         {/* Children */}
-        {hasChildren && expanded && (
-          <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 p-4">
-            {span.children!.map((child) => (
-              <SpanNode
-                key={child.id}
-                span={child}
-                startTime={startTime}
-                depth={depth + 1}
-                forceExpanded={forceExpanded}
-                forceExpandedSignal={forceExpandedSignal}
-              />
-            ))}
+        {hasChildren && childrenExpanded && isContentExpanded && (
+          <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="relative pl-6 pr-4 py-4">
+              {/* Vertical line connecting nested children */}
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-300 dark:bg-slate-700" />
+              {span.children!.map((child) => (
+                <SpanNode
+                  key={child.id}
+                  span={child}
+                  startTime={startTime}
+                  depth={depth + 1}
+                  forceExpanded={forceExpanded}
+                  forceExpandedSignal={forceExpandedSignal}
+                  forceContentExpanded={forceContentExpanded}
+                  forceContentExpandedSignal={forceContentExpandedSignal}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>

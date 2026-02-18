@@ -46,6 +46,7 @@ export interface Span {
   durationUs?: number;
   attributes: Record<string, unknown>;
   status: SpanStatus;
+  statusMessage?: string;
   events: SpanEvent[];
   children?: Span[];
 }
@@ -116,6 +117,8 @@ export interface SpanNodeProps {
   depth?: number;
   forceExpanded?: boolean;
   forceExpandedSignal?: number;
+  forceContentExpanded?: boolean;
+  forceContentExpandedSignal?: number;
 }
 
 /**

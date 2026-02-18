@@ -18,6 +18,8 @@ from .processor import (
     TracingContext,
     traced_agent,
     traced_tool,
+    traced_delegation,
+    traced_agent_run,
     get_tracer,
     set_tracer,
 )
@@ -39,6 +41,8 @@ __all__ = [
     "TracingContext",
     "traced_agent",
     "traced_tool",
+    "traced_delegation",
+    "traced_agent_run",
     "get_tracer",
     "set_tracer",
     "TraceViewer",
