@@ -36,6 +36,20 @@ class AgentTraceHandler(BaseHandler):
         trace = None
         agent_span = None
         tracer = None
+        active_tool_spans: Dict[str, Any] = {}
+        active_part_spans: Dict[int, Dict[str, Any]] = {}
+        total_usage: Dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "requests": 0,
+            "tool_calls": 0,
+        }
+        stream_state: Dict[str, Any] = {
+            "output_data": None,
+            "run_result": None,
+            "detail_spans": 0,
+            "final_result_tool_name": None,
+        }
 
         agent_type = payload.get("agent", "research")
         prompt = payload.get("prompt", "")
@@ -116,6 +130,7 @@ class AgentTraceHandler(BaseHandler):
                 attributes={"content": self._truncate(prompt, 6000)},
             )
             tracer.end_span(prompt_span)
+            stream_state["detail_spans"] = 1
 
             ctx.progress(50, "Executing agent with streaming...", "execution")
 
@@ -131,21 +146,6 @@ class AgentTraceHandler(BaseHandler):
             )
 
             tracer.add_event("agent_start", {"prompt": self._truncate(prompt, 500)})
-
-            active_tool_spans: Dict[str, Any] = {}
-            active_part_spans: Dict[int, Dict[str, Any]] = {}
-            total_usage: Dict[str, int] = {
-                "input_tokens": 0,
-                "output_tokens": 0,
-                "requests": 0,
-                "tool_calls": 0,
-            }
-            stream_state: Dict[str, Any] = {
-                "output_data": None,
-                "run_result": None,
-                "detail_spans": 1,  # user.prompt span
-                "final_result_tool_name": None,
-            }
 
             try:
                 async with asyncio.timeout(timeout):
@@ -258,7 +258,38 @@ class AgentTraceHandler(BaseHandler):
             if tracer:
                 from tracing import SpanStatus
 
+                self._finalize_open_spans(
+                    tracer=tracer,
+                    active_tool_spans=active_tool_spans,
+                    active_part_spans=active_part_spans,
+                )
+
                 if agent_span:
+                    run_result = stream_state.get("run_result")
+                    if run_result is not None:
+                        try:
+                            stream_state["detail_spans"] += self._capture_message_history_snapshot(
+                                tracer=tracer,
+                                agent_span_id=agent_span.id,
+                                run_result=run_result,
+                            )
+                        except Exception as snapshot_error:
+                            ctx.log(
+                                f"Failed to capture error-path message history ({type(snapshot_error).__name__}): {snapshot_error}",
+                                level="warn",
+                            )
+
+                if agent_span:
+                    agent_span.set_attribute("usage.total_tokens", total_usage["input_tokens"] + total_usage["output_tokens"])
+                    agent_span.set_attribute("usage.input_tokens", total_usage["input_tokens"])
+                    agent_span.set_attribute("usage.output_tokens", total_usage["output_tokens"])
+                    agent_span.set_attribute("usage.requests", total_usage["requests"])
+                    agent_span.set_attribute("usage.tool_calls", total_usage["tool_calls"])
+                    agent_span.set_attribute("trace.detail_span_count", stream_state["detail_spans"])
+
+                    if isinstance(e, TimeoutError):
+                        agent_span.set_attribute("error.is_timeout", True)
+
                     tracer.record_exception(e)
                     tracer.end_span(agent_span, status=SpanStatus.error, message=error_message)
                     agent_span = None

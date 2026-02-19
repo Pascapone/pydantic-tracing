@@ -2,6 +2,7 @@
 Orchestrator agent that coordinates sub-agents for complex tasks.
 """
 
+import asyncio
 import time
 from typing import Any
 from pydantic_ai import Agent, RunContext, ModelRetry
@@ -36,6 +37,48 @@ def _get_or_create_agent(agent_type: str, model: str) -> Any:
         elif agent_type == "analysis":
             _sub_agents[agent_type] = create_analysis_agent(model)
     return _sub_agents[agent_type]
+
+
+async def _run_delegated_agent_with_trace(
+    *,
+    sub_agent: Any,
+    prompt: str,
+    ctx: RunContext[AgentDeps],
+    run: Any,
+) -> Any:
+    """
+    Execute a delegated sub-agent while preserving partial history on cancellation/errors.
+    """
+    agent_run = None
+
+    try:
+        async with sub_agent.iter(
+            prompt,
+            deps=ctx.deps,
+            usage=ctx.usage,
+        ) as active_run:
+            agent_run = active_run
+            async for _ in active_run:
+                pass
+
+            result = active_run.result
+            if result is None:
+                raise RuntimeError("Delegated agent run completed without a final result")
+
+            run.set_result(result)
+            return result
+    except asyncio.CancelledError as cancel_error:
+        if agent_run is not None:
+            run.set_partial_messages(agent_run.all_messages(), error=cancel_error)
+        else:
+            run.set_error(cancel_error)
+        raise
+    except Exception as run_error:
+        if agent_run is not None:
+            run.set_partial_messages(agent_run.all_messages(), error=run_error)
+        else:
+            run.set_error(run_error)
+        raise
 
 
 def create_orchestrator(model: str = "openrouter:minimax/minimax-m2.5") -> OrchestratorAgent:
@@ -86,10 +129,11 @@ Guidelines:
         with traced_delegation("research", query, tracer=tracer) as delegation_span:
             with traced_agent_run("research", model_str, tracer=tracer) as run:
                 try:
-                    result = await research_agent.run(
-                        query,
-                        deps=ctx.deps,
-                        usage=ctx.usage,
+                    result = await _run_delegated_agent_with_trace(
+                        sub_agent=research_agent,
+                        prompt=query,
+                        ctx=ctx,
+                        run=run,
                     )
                     duration_ms = int((time.time() - start) * 1000)
 
@@ -99,7 +143,6 @@ Guidelines:
                         "result.summary", report.summary[:200] if report.summary else ""
                     )
                     delegation_span.set_attribute("result.confidence", report.confidence)
-                    run.set_result(result)
 
                     return str(
                         {
@@ -150,10 +193,11 @@ Guidelines:
             delegation_span.set_attribute("coding.language", language)
             with traced_agent_run("coding", model_str, tracer=tracer) as run:
                 try:
-                    result = await coding_agent.run(
-                        f"Language: {language}\nTask: {task}",
-                        deps=ctx.deps,
-                        usage=ctx.usage,
+                    result = await _run_delegated_agent_with_trace(
+                        sub_agent=coding_agent,
+                        prompt=f"Language: {language}\nTask: {task}",
+                        ctx=ctx,
+                        run=run,
                     )
                     duration_ms = int((time.time() - start) * 1000)
 
@@ -163,7 +207,6 @@ Guidelines:
                     delegation_span.set_attribute(
                         "result.executed", code_result.execution is not None
                     )
-                    run.set_result(result)
 
                     return str(
                         {
@@ -214,10 +257,11 @@ Guidelines:
             delegation_span.set_attribute("analysis.type", analysis_type)
             with traced_agent_run("analysis", model_str, tracer=tracer) as run:
                 try:
-                    result = await analysis_agent.run(
-                        f"Analysis type: {analysis_type}\nData: {data_description}",
-                        deps=ctx.deps,
-                        usage=ctx.usage,
+                    result = await _run_delegated_agent_with_trace(
+                        sub_agent=analysis_agent,
+                        prompt=f"Analysis type: {analysis_type}\nData: {data_description}",
+                        ctx=ctx,
+                        run=run,
                     )
                     duration_ms = int((time.time() - start) * 1000)
 
@@ -225,7 +269,6 @@ Guidelines:
                     delegation_span.set_attribute("result.status", "completed")
                     delegation_span.set_attribute("result.data_type", analysis_result.data_type)
                     delegation_span.set_attribute("result.row_count", analysis_result.row_count)
-                    run.set_result(result)
 
                     return str(
                         {

@@ -2,8 +2,9 @@
 OpenTelemetry-compatible span processor for pydantic-ai.
 """
 import contextvars
+import json
 import threading
-from typing import Optional, Any
+from typing import Optional, Any, Sequence
 from dataclasses import dataclass, field
 
 from .spans import Span, SpanKind, SpanStatus, SpanType, Trace
@@ -464,6 +465,10 @@ class traced_agent_run:
         reasoning_span_count = self._capture_reasoning_spans(result)
         if reasoning_span_count > 0:
             self.span.set_attribute("trace.reasoning_span_count", reasoning_span_count)
+
+        tool_call_span_count = self._capture_tool_spans(result)
+        if tool_call_span_count > 0:
+            self.span.set_attribute("trace.tool_call_span_count", tool_call_span_count)
         
         final_span = self.tracer.start_span(
             name="model.response:final",
@@ -478,14 +483,77 @@ class traced_agent_run:
         )
         self.tracer.end_span(final_span)
 
+    def set_partial_messages(
+        self,
+        messages: Sequence[Any],
+        *,
+        error: BaseException | None = None,
+    ) -> None:
+        """
+        Persist best-effort reasoning/tool spans from an incomplete sub-agent run.
+
+        This is used for timeout/cancellation/error paths where no final AgentRunResult
+        is available, but partial message history exists.
+        """
+        if not self.span:
+            return
+
+        if error is not None:
+            self.set_error(error)
+
+        extracted_messages = self._extract_messages(messages)
+        if not extracted_messages:
+            return
+
+        self.span.set_attribute("stream.incomplete", True)
+        self.span.set_attribute("trace.partial_message_count", len(extracted_messages))
+
+        reasoning_span_count = self._capture_reasoning_spans(extracted_messages)
+        if reasoning_span_count > 0:
+            self.span.set_attribute("trace.reasoning_span_count", reasoning_span_count)
+
+        tool_call_span_count = self._capture_tool_spans(extracted_messages)
+        if tool_call_span_count > 0:
+            self.span.set_attribute("trace.tool_call_span_count", tool_call_span_count)
+
+    def set_error(self, error: BaseException) -> None:
+        """Mark the delegated run span as failed even if the exception is handled upstream."""
+        if not self.span:
+            return
+
+        self.span.status = SpanStatus.error
+        self.span.status_message = str(error)
+        self.span.set_attribute("agent.error_type", type(error).__name__)
+        self.span.set_attribute("agent.error_message", str(error)[:2000])
+
+    def _extract_messages(self, source: Any) -> list[Any]:
+        if source is None:
+            return []
+
+        if isinstance(source, list):
+            return source
+
+        if isinstance(source, tuple):
+            return list(source)
+
+        if isinstance(source, Sequence) and not isinstance(source, (str, bytes, bytearray)):
+            return list(source)
+
+        if hasattr(source, "all_messages"):
+            try:
+                return list(source.all_messages())
+            except Exception:
+                return []
+
+        return []
+
     def _capture_reasoning_spans(self, result: Any) -> int:
         """Extract model thinking from run messages and persist model.reasoning spans."""
-        if not self.span or not hasattr(result, "all_messages"):
+        if not self.span:
             return 0
 
-        try:
-            messages = result.all_messages()
-        except Exception:
+        messages = self._extract_messages(result)
+        if not messages:
             return 0
 
         captured = 0
@@ -525,6 +593,132 @@ class traced_agent_run:
             captured += 1
 
         return captured
+
+    def _capture_tool_spans(self, result: Any) -> int:
+        """Extract tool call/return parts from message history and persist tool.call spans."""
+        if not self.span:
+            return 0
+
+        messages = self._extract_messages(result)
+        if not messages:
+            return 0
+
+        active_tool_spans: dict[str, Span] = {}
+        captured = 0
+
+        for message_index, message in enumerate(messages):
+            parts = getattr(message, "parts", None)
+            if not parts:
+                continue
+
+            for part_index, part in enumerate(parts):
+                part_kind = str(getattr(part, "part_kind", "")).lower().replace("_", "-")
+                part_type = type(part).__name__
+                is_tool_call = part_kind == "tool-call" or part_type == "ToolCallPart"
+                is_tool_result = (
+                    part_kind in {"tool-return", "retry-prompt"}
+                    or part_type in {"ToolReturnPart", "RetryPromptPart"}
+                )
+
+                if is_tool_call:
+                    tool_name = getattr(part, "tool_name", None) or getattr(part, "name", None) or "unknown"
+                    tool_call_id = (
+                        getattr(part, "tool_call_id", None)
+                        or f"msg-{message_index}-part-{part_index}-{tool_name}"
+                    )
+                    tool_call_id = str(tool_call_id)
+
+                    tool_span = self.tracer.start_span(
+                        name=f"tool.call:{tool_name}",
+                        kind=SpanKind.internal,
+                        span_type=SpanType.tool_call,
+                        parent_id=self.span.id,
+                        activate=False,
+                        attributes={
+                            "message.index": message_index,
+                            "message.part_index": part_index,
+                            "tool.name": tool_name,
+                            "tool.call_id": tool_call_id,
+                            "tool.arguments": self._extract_tool_arguments(getattr(part, "args", None)),
+                        },
+                    )
+                    active_tool_spans[tool_call_id] = tool_span
+                    continue
+
+                if not is_tool_result:
+                    continue
+
+                tool_call_id_raw = getattr(part, "tool_call_id", None)
+                tool_call_id = str(tool_call_id_raw) if tool_call_id_raw is not None else None
+                tool_name = getattr(part, "tool_name", None) or getattr(part, "name", None) or "unknown"
+                result_content = getattr(part, "content", None)
+                status = SpanStatus.error if part_kind == "retry-prompt" else SpanStatus.ok
+
+                tool_span = active_tool_spans.pop(tool_call_id, None) if tool_call_id else None
+                if tool_span is None:
+                    tool_span = self.tracer.start_span(
+                        name=f"tool.call:{tool_name}",
+                        kind=SpanKind.internal,
+                        span_type=SpanType.tool_call,
+                        parent_id=self.span.id,
+                        activate=False,
+                        attributes={
+                            "message.index": message_index,
+                            "message.part_index": part_index,
+                            "tool.name": tool_name,
+                            "tool.call_id": tool_call_id,
+                        },
+                    )
+                elif tool_name and tool_span.attributes.get("tool.name") == "unknown":
+                    tool_span.set_attribute("tool.name", tool_name)
+                    tool_span.name = f"tool.call:{tool_name}"
+
+                tool_span.set_attribute("tool.result", self._serialize_value(result_content))
+                tool_span.set_attribute(
+                    "tool.result_type",
+                    type(result_content).__name__ if result_content is not None else "None",
+                )
+                self.tracer.end_span(tool_span, status=status)
+                captured += 1
+
+        for pending_span in active_tool_spans.values():
+            pending_span.set_attribute("stream.incomplete", True)
+            pending_span.set_attribute("tool.result", "<missing tool-return>")
+            self.tracer.end_span(
+                pending_span,
+                status=SpanStatus.error,
+                message="Tool return missing from message history",
+            )
+            captured += 1
+
+        return captured
+
+    def _extract_tool_arguments(self, raw_args: Any) -> Any:
+        if raw_args is None:
+            return {}
+
+        if isinstance(raw_args, dict):
+            return self._serialize_value(raw_args)
+
+        if isinstance(raw_args, str):
+            try:
+                return self._serialize_value(json.loads(raw_args))
+            except json.JSONDecodeError:
+                return {"raw": self._serialize_value(raw_args)}
+
+        if hasattr(raw_args, "args_as_dict"):
+            try:
+                return self._serialize_value(raw_args.args_as_dict())
+            except Exception:
+                pass
+
+        if hasattr(raw_args, "args_json"):
+            try:
+                return self._serialize_value(json.loads(raw_args.args_json))
+            except Exception:
+                return {"raw": self._serialize_value(getattr(raw_args, "args_json", ""))}
+
+        return self._serialize_value(raw_args)
     
     def _serialize_value(self, value: Any) -> Any:
         try:
@@ -539,9 +733,15 @@ class traced_agent_run:
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if not self.span:
             return
-        
+
+        end_status = self.span.status if self.span.status != SpanStatus.unset else SpanStatus.ok
+        end_message = self.span.status_message
+
         if exc_type:
-            self.span.status = SpanStatus.error
-            self.span.status_message = str(exc_val)
-        
-        self.tracer.end_span(self.span)
+            error_message = str(exc_val)
+            self.span.set_attribute("agent.error_type", getattr(exc_type, "__name__", str(exc_type)))
+            self.span.set_attribute("agent.error_message", error_message[:2000])
+            end_status = SpanStatus.error
+            end_message = error_message
+
+        self.tracer.end_span(self.span, status=end_status, message=end_message)
