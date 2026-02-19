@@ -1,5 +1,7 @@
 Always read the index file of the docs (`.docs\project\index.md`) and read more on topics you are not familiar with and that are relevant to the task.
 
+The virtual environment for python (`./python-workers/.venv`) must be used for running python and workers.
+
 # Getting Started
 
 To run this application:

@@ -1,6 +1,7 @@
 """
 Multi-agent system for pydantic-ai tracing tests.
 """
+
 from .schemas import (
     TaskStatus,
     AgentType,
@@ -22,6 +23,7 @@ from .orchestrator import OrchestratorAgent, create_orchestrator
 from .research import ResearchAgent, create_research_agent
 from .coding import CodingAgent, create_coding_agent
 from .analysis import AnalysisAgent, create_analysis_agent
+from .common import create_traced_agent, wrap_model_for_tracing
 
 __all__ = [
     "TaskStatus",
@@ -47,4 +49,6 @@ __all__ = [
     "create_research_agent",
     "create_coding_agent",
     "create_analysis_agent",
+    "create_traced_agent",
+    "wrap_model_for_tracing",
 ]

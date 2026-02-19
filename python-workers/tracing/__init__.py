@@ -1,6 +1,7 @@
 """
 Tracing system for pydantic-ai agents.
 """
+
 from .spans import (
     Span,
     Trace,
@@ -24,6 +25,7 @@ from .processor import (
     set_tracer,
 )
 from .viewer import TraceViewer, print_trace, export_traces
+from .wrappers import TracedModel, TracedStreamedResponse, wrap_model
 
 __all__ = [
     "Span",
@@ -48,4 +50,7 @@ __all__ = [
     "TraceViewer",
     "print_trace",
     "export_traces",
+    "TracedModel",
+    "TracedStreamedResponse",
+    "wrap_model",
 ]
