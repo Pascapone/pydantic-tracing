@@ -17,53 +17,30 @@ test('trace visualization flow', async ({ page }) => {
 
         await expect(page.getByRole('heading', { name: /TANAUTH/i })).toBeVisible();
 
-        console.log('Checking for Sign Up buttons');
-        const count = await page.getByRole('button', { name: /Sign Up/i }).count();
-        console.log(`Found ${count} Sign Up buttons`);
-
-        if (count === 0) {
-            console.log('No Sign Up buttons found! Dumping body HTML to file...');
-            const bodyHtml = await page.evaluate(() => document.body.innerHTML);
-            fs.writeFileSync('debug_dump.html', bodyHtml);
-            console.log('Dumped to debug_dump.html');
-        }
-
         // Switch to Sign Up mode
         console.log('Switching to Sign Up');
-        const nameInput = page.locator('input#name, input[placeholder="Your name"]').first();
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            const signUpButton = page.getByRole('button', { name: /^Sign Up$/ }).first();
-            await expect(signUpButton).toBeVisible();
-            await signUpButton.click();
-            console.log(`Clicked Sign Up toggle (attempt ${attempt})`);
-
-            if (await nameInput.isVisible()) {
+        const signUpToggle = page.getByRole('button', { name: /^Sign Up$/ }).first();
+        const signUpIntro = page.getByText('Create a new account to get started');
+        await expect(signUpToggle).toBeVisible();
+        for (let attempt = 1; attempt <= 5; attempt++) {
+            await signUpToggle.click();
+            try {
+                await expect(signUpIntro).toBeVisible({ timeout: 1500 });
                 break;
-            }
-
-            const footerSignUpButton = page.getByRole('button', { name: /^Sign up$/ }).first();
-            if (await footerSignUpButton.isVisible()) {
-                await footerSignUpButton.click();
-                console.log(`Clicked footer Sign up fallback (attempt ${attempt})`);
-            }
-
-            if (await nameInput.isVisible()) {
-                break;
-            }
-
-            if (attempt < 3) {
-                console.log(`Sign up form still not visible; reloading /login (attempt ${attempt})`);
-                await page.goto('/login');
-                await expect(page.getByRole('heading', { name: /TANAUTH/i })).toBeVisible();
+            } catch (error) {
+                if (attempt === 5) throw error;
             }
         }
 
         // Fill registration form
         console.log('Filling registration form');
+        const nameInput = page.getByLabel('Name').first();
+        const emailInput = page.getByLabel('Email').first();
+        const passwordInput = page.getByLabel('Password').first();
         await expect(nameInput).toBeVisible({ timeout: 15000 });
         await nameInput.fill('E2E Test User');
-        await page.fill('#email', email);
-        await page.fill('#password', password);
+        await emailInput.fill(email);
+        await passwordInput.fill(password);
 
         // Submit
         console.log('Submitting registration');
