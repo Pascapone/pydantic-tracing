@@ -3,9 +3,9 @@ Unit tests for agent_trace handler event processing.
 """
 import asyncio
 import sys
-import tempfile
 import os
 import gc
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock, patch
 from dataclasses import dataclass
@@ -15,6 +15,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tracing.collector import TraceCollector
 from tracing.spans import Span, SpanType, SpanKind, SpanStatus
+
+TEST_TMP_ROOT = Path(__file__).parent.parent / ".test-tmp"
+
+
+def make_workspace_db_path() -> str:
+    TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
+    return str(TEST_TMP_ROOT / f"handler_events_{uuid.uuid4().hex}.db")
 
 
 def get_tracer(db_path: str):
@@ -92,8 +99,7 @@ def test_tool_call_event_with_tool_name():
     
     db_path = None
     try:
-        tmpdir = tempfile.mkdtemp()
-        db_path = os.path.join(tmpdir, "test.db")
+        db_path = make_workspace_db_path()
         tracer = get_tracer(db_path)
         
         trace = tracer.start_trace("test_trace")
@@ -136,9 +142,8 @@ def test_tool_call_event_with_tool_name():
     finally:
         close_tracer()
         if db_path:
-            import shutil
             try:
-                shutil.rmtree(os.path.dirname(db_path), ignore_errors=True)
+                os.remove(db_path)
             except:
                 pass
 
@@ -152,8 +157,7 @@ def test_tool_call_event_without_tool_name():
     
     db_path = None
     try:
-        tmpdir = tempfile.mkdtemp()
-        db_path = os.path.join(tmpdir, "test.db")
+        db_path = make_workspace_db_path()
         tracer = get_tracer(db_path)
         
         trace = tracer.start_trace("test_trace")
@@ -195,9 +199,8 @@ def test_tool_call_event_without_tool_name():
     finally:
         close_tracer()
         if db_path:
-            import shutil
             try:
-                shutil.rmtree(os.path.dirname(db_path), ignore_errors=True)
+                os.remove(db_path)
             except:
                 pass
 
@@ -211,8 +214,7 @@ def test_tool_result_updates_unknown_tool_name():
     
     db_path = None
     try:
-        tmpdir = tempfile.mkdtemp()
-        db_path = os.path.join(tmpdir, "test.db")
+        db_path = make_workspace_db_path()
         tracer = get_tracer(db_path)
         
         trace = tracer.start_trace("test_trace")
@@ -281,9 +283,8 @@ def test_tool_result_updates_unknown_tool_name():
     finally:
         close_tracer()
         if db_path:
-            import shutil
             try:
-                shutil.rmtree(os.path.dirname(db_path), ignore_errors=True)
+                os.remove(db_path)
             except:
                 pass
 
@@ -297,8 +298,7 @@ def test_thinking_part_creates_reasoning_span():
     
     db_path = None
     try:
-        tmpdir = tempfile.mkdtemp()
-        db_path = os.path.join(tmpdir, "test.db")
+        db_path = make_workspace_db_path()
         tracer = get_tracer(db_path)
         
         trace = tracer.start_trace("test_trace")
@@ -368,9 +368,8 @@ def test_thinking_part_creates_reasoning_span():
     finally:
         close_tracer()
         if db_path:
-            import shutil
             try:
-                shutil.rmtree(os.path.dirname(db_path), ignore_errors=True)
+                os.remove(db_path)
             except:
                 pass
 

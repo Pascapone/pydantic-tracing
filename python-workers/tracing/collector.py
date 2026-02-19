@@ -304,6 +304,15 @@ class TraceCollector:
     @classmethod
     def reset_instance(cls) -> None:
         with cls._lock:
+            if cls._instance is not None:
+                local = getattr(cls._instance, "_local", None)
+                connection = getattr(local, "connection", None) if local else None
+                if connection is not None:
+                    try:
+                        connection.close()
+                    except Exception:
+                        pass
+                    local.connection = None
             cls._instance = None
 
 

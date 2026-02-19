@@ -129,6 +129,15 @@ export async function createJob(opts: CreateJobOptions): Promise<string> {
     type: opts.type,
   } as JobPayload;
 
+  // Ensure Python agent workers receive user context so traces can be queried per-user in /traces.
+  if (opts.type === "agent.run" && opts.userId) {
+    const payloadWithUser = jobPayload as Record<string, unknown>;
+    if (!payloadWithUser.userId && !payloadWithUser.user_id) {
+      payloadWithUser.userId = opts.userId;
+      payloadWithUser.user_id = opts.userId;
+    }
+  }
+
   await db.insert(jobTable).values({
     id,
     type: opts.type,

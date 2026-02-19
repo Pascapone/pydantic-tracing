@@ -1,5 +1,7 @@
 Always read the index file of the docs (`.docs\project\index.md`) and read more on topics you are not familiar with and that are relevant to the task.
 
+The virtual environment for python (`./python-workers/.venv`) must be used for running python and workers.
+
 # Getting Started
 
 To run this application:
@@ -193,6 +195,7 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 | **Python Workers** | Python 3.11+ | Async job processing for AI/data tasks |
 | **AI Agents** | [pydantic-ai](https://ai.pydantic.dev/) | Multi-agent system with tool calling |
 | **Agent Tracing** | Custom SQLite | Open-source alternative to Logfire |
+| **Traces UI** | [@uiw/react-json-view](https://github.com/uiwjs/react-json-view) | JSON tree viewer for structured outputs |
 | **Database** | [SQLite](https://sqlite.org) | Local file-based DB (`sqlite.db`) |
 | **ORM** | [Drizzle ORM](https://orm.drizzle.team) | TypeScript ORM with `better-sqlite3` driver |
 | **Styling** | [Tailwind CSS](https://tailwindcss.com) | Utility-first CSS framework (v4) |
@@ -485,7 +488,35 @@ tracer.end_trace()
 print_trace(trace.id, "traces.db")
 ```
 
-### 6.6 Agent Types
+### 6.6 Span Types
+
+| Type | Description |
+|------|-------------|
+| `agent.run` | Agent execution - final result stored in `attributes.output` |
+| `tool.call` | Tool function invocation |
+| `tool.result` | Tool return value |
+| `model.request` | LLM API request (filtered in UI) |
+| `model.response` | LLM API response - only `:final` shown in UI |
+| `model.reasoning` | Model thinking/reasoning content |
+| `agent.delegation` | Agent-to-agent delegation |
+| `user.prompt` | User input prompt |
+
+**Naming Convention:** Spans use `{type}:{subtype}` format. The `:final` suffix on `model.response` marks the final structured output — the UI filters out intermediate streaming chunks.
+
+### 6.7 Traces UI
+
+The traces viewer (`/traces`) renders structured JSON outputs using `@uiw/react-json-view`:
+
+- **`model.response:final`** — Renders with "Structured Output" label and collapsible JSON tree
+- **`tool.result`** — Shows returned value with collapsible JSON tree
+- **Default depth:** `collapsed={2}` shows top-level keys
+- **VS Code dark theme** with transparent background
+
+**Timeline Filtering:**
+- `model.request` spans are filtered out (redundant)
+- `model.response` spans filtered except `:final`
+
+### 6.8 Agent Types
 
 | Agent | Purpose | Tools |
 |-------|---------|-------|
@@ -494,7 +525,7 @@ print_trace(trace.id, "traces.db")
 | **Coding** | Code generation and execution | `write_file`, `read_file`, `run_code`, `analyze_code` |
 | **Analysis** | Data analysis and visualization | `parse_data`, `calculate_stats`, `generate_chart` |
 
-### 6.7 Example Scripts
+### 6.9 Example Scripts
 
 | Script | API Calls | Description |
 |--------|-----------|-------------|
@@ -508,7 +539,7 @@ print_trace(trace.id, "traces.db")
 | `05_concurrent.py` | Yes | Parallel agent execution |
 | `06_conversation.py` | Yes | Multi-turn with history |
 
-### 6.8 Database Schema
+### 6.10 Database Schema
 
 **traces table:**
 | Column | Type | Description |
@@ -532,7 +563,7 @@ print_trace(trace.id, "traces.db")
 | `attributes` | JSON | Key-value metadata |
 | `events` | JSON | List of events |
 
-### 6.9 Documentation
+### 6.11 Documentation
 
 Full documentation available in `python-workers/docs/`:
 - `agents.md` - Multi-agent system documentation

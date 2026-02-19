@@ -16,3 +16,15 @@ sqlite.db
 drizzle/
 .venv
 __pycache__/
+*.pyc
+python-workers/.pytest_cache/
+python-workers/tests/.pytest_cache/
+python-workers/tests/.tmp/
+python-workers/.test-tmp/
+python-workers/tests/pytest-cache-files-*/
+python-workers/python-workers/tests/pytest-cache-files-*/
+python-workers/traces.db
+python-workers/reproduce_traces.db
+playwright-report/
+test-results/
+debug_dump.html

@@ -15,7 +15,7 @@ export const Route = createFileRoute("/traces")({
 });
 
 function TracesPage() {
-  const { isPending } = useSession();
+  const { data: session, isPending } = useSession();
 
   if (isPending) {
     return (
@@ -27,5 +27,6 @@ function TracesPage() {
 
   // TraceTerminal uses demo data for now
   // TODO: Integrate with useTraces hook when API endpoints are ready
-  return <TraceTerminal />;
+  // Update: TraceTerminal now uses real hooks, we need to pass userId
+  return <TraceTerminal userId={session?.user?.id} />;
 }

@@ -5,10 +5,19 @@
   "scripts": {
     "redis:start": "docker run -d --name redis -p 6379:6379 redis:alpine",
     "redis:stop": "docker stop redis && docker rm redis",
-    "dev": "vite dev --port 3000",
+    "dev": "vite dev --host 127.0.0.1 --port 3341 --strictPort",
+    "dev:test": "vite dev --host 127.0.0.1 --port 3341 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "npm run test:unit",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:e2e": "node scripts/e2e-preflight.mjs && playwright test --config=playwright.config.ts --project=chromium --workers=1 --reporter=line",
+    "test:e2e:preflight": "node scripts/e2e-preflight.mjs",
+    "test:e2e:traces": "node scripts/e2e-preflight.mjs && playwright test --config=playwright.config.ts e2e/traces.spec.ts --project=chromium --workers=1 --reporter=line",
+    "test:e2e:headed": "node scripts/e2e-preflight.mjs && playwright test --config=playwright.config.ts --project=chromium --workers=1 --reporter=line --headed",
+    "test:e2e:debug": "node scripts/e2e-preflight.mjs && playwright test --config=playwright.config.ts e2e/traces.spec.ts --project=chromium --workers=1 --debug",
+    "test:e2e:report": "playwright show-report playwright-report",
+    "test:py": ".\\python-workers\\.venv\\Scripts\\python.exe -m pytest python-workers/tests -q -p no:cacheprovider --ignore=python-workers/tests/.tmp --ignore-glob=python-workers/tests/pytest-cache-files-*"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -33,6 +42,7 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tanstack/devtools-vite": "^0.3.11",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.2.0",

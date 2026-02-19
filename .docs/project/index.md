@@ -11,6 +11,8 @@ Quick reference for project-specific patterns. Read only what you need.
 | **AI Agents & Tracing** | Multi-agent system, pydantic-ai, observability, traces UI | [ai-agents.md](./ai-agents.md) |
 | **Database** | Modifying schema, adding tables, migrations | [database.md](./database.md) |
 | **Conventions** | General patterns, file organization, coding style | [conventions.md](./conventions.md) |
+| **Testing** | How to run and write frontend/backend tests | [testing.md](./testing.md) |
+
 
 ## Key Files Quick Reference
 

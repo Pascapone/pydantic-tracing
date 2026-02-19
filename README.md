@@ -19,10 +19,35 @@ npm run build
 
 ## Testing
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+This project uses [Vitest](https://vitest.dev/) for frontend unit tests, [Playwright](https://playwright.dev/) for E2E, and Python `pytest` for worker tests.
+
+Frontend unit tests:
 
 ```bash
-npm run test
+npm run test:unit
+```
+
+E2E tests (manual two-terminal flow):
+
+```bash
+# Terminal A
+npm run dev:test
+
+# Terminal B
+npm run test:e2e:preflight
+npm run test:e2e
+```
+
+Python worker tests (must use the project venv):
+
+```bash
+npm run test:py
+```
+
+If PowerShell blocks `npm.ps1`, run via:
+
+```bash
+cmd /c npm run test:unit
 ```
 
 ## Styling

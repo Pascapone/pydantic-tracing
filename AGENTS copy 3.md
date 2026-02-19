@@ -21,36 +21,19 @@ npm run build
 
 ## Testing
 
-Run tests with these commands:
+This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
 
 ```bash
-npm run test:unit
+npm run test
 ```
+
+### Python Tests
+
+To run python tests:
 
 ```bash
-npm run test:py
+./python-workers/.venv/Scripts/python.exe -m pytest
 ```
-
-```bash
-# Terminal A
-npm run dev:test
-
-# Terminal B
-npm run test:e2e:preflight
-npm run test:e2e
-```
-
-```bash
-# E2E trace flow only
-npm run test:e2e:traces
-```
-
-### Testing Gotchas
-
-- Always run Python tests/workers with `./python-workers/.venv/Scripts/python.exe` (the npm `test:py` script already does this).
-- In this environment, Playwright should use a warm/manual dev server (`npm run dev:test`) instead of Playwright-managed `webServer`.
-- Run `npm run test:e2e:preflight` before E2E to catch bad local routing (for example Dokploy `400` pages) early.
-- If PowerShell blocks `npm.ps1`, use `cmd /c npm run <script>`.
 
 ## Styling
 
