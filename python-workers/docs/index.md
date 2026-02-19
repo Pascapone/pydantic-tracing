@@ -35,10 +35,12 @@ The system combines two complementary components:
 - **Tool Call Capture**: Complex payloads and return values for all tool invocations
 - **Structured Outputs**: Pydantic models validated and recorded in traces
 - **Agent Delegation**: Nested traces when agents call other agents
+- **Delegated Reasoning Capture**: Sub-agent reasoning is persisted as explicit `model.reasoning` spans
 - **Error Handling**: ModelRetry, validation failures, and exception capture
 - **Message History**: Multi-turn conversation tracking
 - **SQLite Storage**: Local persistence with query and export utilities
 - **OpenTelemetry Compatible**: Export to OTLP receivers
+- **OpenRouter Stream Compatibility**: Missing `native_finish_reason` is normalized before chunk validation
 
 ---
 
@@ -198,6 +200,7 @@ python-workers/
 │   ├── spans.py              # Span and Trace models
 │   ├── collector.py          # SQLite storage
 │   ├── processor.py          # Tracer implementation
+│   ├── openrouter_compat.py  # OpenRouter streaming compatibility patch
 │   └── viewer.py             # Query utilities
 ├── examples/
 │   ├── 00_testmodel.py       # No API calls

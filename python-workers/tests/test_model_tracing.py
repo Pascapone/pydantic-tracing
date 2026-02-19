@@ -13,6 +13,31 @@ from pydantic_ai.models.test import TestModel
 
 # --- Tests ---
 
+
+class _TextPart:
+    def __init__(self, content: str):
+        self.content = content
+        self.part_kind = "text"
+
+
+class _StreamEvent:
+    def __init__(self, part):
+        self.part = part
+
+
+class _AiterOnlyStream:
+    """Async iterable stream with __aiter__ but no __anext__."""
+
+    def __init__(self, events):
+        self._events = events
+
+    async def _iterate(self):
+        for event in self._events:
+            yield event
+
+    def __aiter__(self):
+        return self._iterate()
+
 @pytest.mark.asyncio
 async def test_traced_model_request(tracer):
     """Test that TracedModel.request creates correct spans."""
@@ -69,4 +94,28 @@ async def test_traced_model_attributes(tracer):
     assert "model.name" in req["attributes"]
     assert req["attributes"]["model.name"] == "test"
     
+    tracer.end_trace()
+
+
+@pytest.mark.asyncio
+async def test_traced_streamed_response_handles_aiter_only_stream(tracer):
+    """Regression: OpenRouter stream implements __aiter__ but not __anext__."""
+    from tracing.wrappers import TracedStreamedResponse
+
+    tracer.start_trace("test_stream_wrapper", user_id="test")
+    span = tracer.start_span("model.request_stream:test", span_type=SpanType.model_request)
+
+    stream = _AiterOnlyStream([_StreamEvent(_TextPart("hello from stream"))])
+    traced_stream = TracedStreamedResponse(stream, span, tracer)
+
+    events = []
+    async for event in traced_stream:
+        events.append(event)
+
+    traced_stream.finalize_span()
+
+    assert len(events) == 1
+    assert span.attributes.get("model.text") == "hello from stream"
+
+    tracer.end_span(span)
     tracer.end_trace()

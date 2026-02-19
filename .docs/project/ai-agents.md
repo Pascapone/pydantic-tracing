@@ -135,6 +135,12 @@ Spans are named `{type}:{subtype}` for identification:
 
 The `:final` suffix on `model.response` is critical — the UI filters out intermediate streaming chunks and only displays the final response.
 
+### Recent Fixes (2026-02-19)
+
+- Delegated sub-agent runs now persist explicit `model.reasoning` spans from run message history in `python-workers/tracing/processor.py` (`traced_agent` and `traced_agent_run`).
+- Timeline filtering was extracted to `src/components/tracing/traceTree.ts` and now hoists processed children from filtered parents (`model.request`, non-final `model.response`) so nested reasoning is not lost.
+- OpenRouter streaming compatibility patch added in `python-workers/tracing/openrouter_compat.py`, applied from `python-workers/tracing/wrappers.py` during `TracedModel` initialization.
+
 ### Quick Example
 
 ```python
@@ -303,6 +309,7 @@ python-workers/
 │   ├── spans.py              # Span and Trace models
 │   ├── collector.py          # SQLite storage
 │   ├── processor.py          # Tracer implementation
+│   ├── openrouter_compat.py # OpenRouter streaming compatibility patch
 │   └── viewer.py             # Query utilities
 ├── examples/
 │   ├── 00_testmodel.py       # No API calls
@@ -441,8 +448,8 @@ The `TraceTimeline` component filters spans to reduce noise:
 
 | Span Type | Behavior |
 |-----------|----------|
-| `model.request` | **Filtered out** (redundant with prompt) |
-| `model.response` | Only `:final` kept (streaming chunks hidden) |
+| `model.request` | Filtered as primary node, but processed children are hoisted and preserved |
+| `model.response` | Only `:final` shown as primary response; non-final children are hoisted |
 | All others | Shown in timeline |
 
 #### JSON Viewer

@@ -190,6 +190,17 @@ The `traced_agent` decorator automatically:
 - Captures the final result in `attributes.output`
 - Records timing and status
 
+### traced_agent_run and delegated reasoning
+
+Delegated sub-agent runs use `traced_agent_run` in `python-workers/tracing/processor.py`.
+
+Recent behavior update:
+
+- When a delegated run completes, reasoning is extracted from `result.all_messages()` and stored as explicit `model.reasoning` spans under the delegated `agent.run:*` span.
+- The delegated `agent.run:*` span also records `trace.reasoning_span_count` when reasoning spans are captured.
+
+This avoids losing reasoning visibility when `model.request` spans are filtered in the UI.
+
 ### traced_tool
 
 Automatically wrap tool calls with tracing:
@@ -201,6 +212,22 @@ with traced_tool("search_web", {"query": "python"}) as span:
     results = await search_web("python")
     span.set_attribute("result.count", len(results))
 ```
+
+---
+
+## Provider Compatibility Notes
+
+### OpenRouter streaming (`native_finish_reason`)
+
+OpenRouter streamed chunks may omit `choices[*].native_finish_reason` in some provider routes.  
+Current `pydantic-ai` OpenRouter chunk validation can treat this field as required, which may raise a validation error before agent execution completes.
+
+Project-specific mitigation:
+
+- `python-workers/tracing/openrouter_compat.py` patches OpenRouter streamed chunk validation by injecting `native_finish_reason=None` when missing.
+- The patch is applied from `TracedModel.__init__` in `python-workers/tracing/wrappers.py`.
+
+This keeps streaming runs stable while upstream schema behavior evolves.
 
 ---
 

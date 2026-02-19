@@ -2,7 +2,7 @@
 Model wrappers for tracing pydantic-ai model requests and responses.
 """
 
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Optional
 from contextlib import asynccontextmanager
 
 from pydantic_ai.models.wrapper import WrapperModel
@@ -11,6 +11,7 @@ from pydantic_ai.messages import ModelMessage
 
 from .spans import SpanType, SpanKind, SpanStatus
 from .processor import get_tracer
+from .openrouter_compat import apply_openrouter_native_finish_reason_patch
 
 
 class TracedStreamedResponse:
@@ -24,24 +25,51 @@ class TracedStreamedResponse:
         self._thinking_parts = []
         self._tool_calls = []
         self._model_name = getattr(stream, "model_name", "unknown")
+        self._event_iterator: Optional[AsyncIterator[Any]] = None
 
     def __aiter__(self):
-        return self
+        if self._event_iterator is None:
+            self._event_iterator = self._iter_events()
+        return self._event_iterator
 
     async def __anext__(self):
-        event = await self._stream.__anext__()
+        if self._event_iterator is None:
+            self._event_iterator = self._iter_events()
+        return await self._event_iterator.__anext__()
 
+    def __getattr__(self, name: str) -> Any:
+        # Delegate unknown attributes to preserve StreamedResponse compatibility.
+        return getattr(self._stream, name)
+
+    async def _iter_events(self) -> AsyncIterator[Any]:
+        stream_iterator: AsyncIterator[Any]
+
+        if hasattr(self._stream, "__aiter__"):
+            stream_iterator = self._stream.__aiter__()
+        elif hasattr(self._stream, "__anext__"):
+            # Backward compatibility for legacy async-iterator implementations.
+            stream_iterator = self._stream
+        else:
+            raise TypeError(
+                f"Stream object {type(self._stream).__name__} is not async iterable"
+            )
+
+        async for event in stream_iterator:
+            self._capture_event(event)
+            yield event
+
+    def _capture_event(self, event: Any) -> None:
         if hasattr(event, "part") and event.part:
             part = event.part
             part_type = part.__class__.__name__
-            if part_type == "TextPart" and hasattr(part, "content"):
-                self._text_parts.append(part.content)
-            elif part_type == "ThinkingPart" and hasattr(part, "content"):
-                self._thinking_parts.append(part.content)
-            elif part_type == "ToolCallPart" and hasattr(part, "tool_name"):
-                self._tool_calls.append(part.tool_name)
+            part_kind = str(getattr(part, "part_kind", "")).lower()
 
-        return event
+            if (part_type == "TextPart" or part_kind == "text") and hasattr(part, "content"):
+                self._text_parts.append(part.content)
+            elif (part_type == "ThinkingPart" or part_kind == "thinking") and hasattr(part, "content"):
+                self._thinking_parts.append(part.content)
+            elif (part_type == "ToolCallPart" or part_kind == "tool-call") and hasattr(part, "tool_name"):
+                self._tool_calls.append(part.tool_name)
 
     def finalize_span(self):
         if self._text_parts:
@@ -69,6 +97,8 @@ class TracedModel(WrapperModel):
     """
 
     def __init__(self, wrapped):
+        # Upstream compatibility: OpenRouter may omit native_finish_reason in chunks.
+        apply_openrouter_native_finish_reason_patch()
         super().__init__(wrapped)
 
     async def request(

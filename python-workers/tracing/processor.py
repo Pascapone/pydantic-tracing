@@ -215,12 +215,16 @@ class traced_agent:
             
         # Serialize output
         serialized = self._serialize_value(output)
-        
+
         # Set attributes
         self.span.set_attribute("output", serialized)
         if hasattr(output, "__class__"):
             self.span.set_attribute("result.type", output.__class__.__name__)
-            
+
+        reasoning_span_count = self._capture_reasoning_spans(result)
+        if reasoning_span_count > 0:
+            self.span.set_attribute("trace.reasoning_span_count", reasoning_span_count)
+
         # Create a final model response span for visibility
         final_span = self.tracer.start_span(
             name="model.response:final",
@@ -234,6 +238,54 @@ class traced_agent:
             },
         )
         self.tracer.end_span(final_span)
+
+    def _capture_reasoning_spans(self, result: Any) -> int:
+        """Extract model thinking from run messages and persist model.reasoning spans."""
+        if not self.span or not hasattr(result, "all_messages"):
+            return 0
+
+        try:
+            messages = result.all_messages()
+        except Exception:
+            return 0
+
+        captured = 0
+        for index, message in enumerate(messages):
+            parts = getattr(message, "parts", None)
+            if not parts:
+                continue
+
+            reasoning_parts = []
+            for part in parts:
+                if getattr(part, "part_kind", "") != "thinking":
+                    continue
+                content = getattr(part, "content", None)
+                if content:
+                    reasoning_parts.append(str(content))
+
+            if not reasoning_parts:
+                continue
+
+            reasoning_text = "\n".join(reasoning_parts).strip()
+            if not reasoning_text:
+                continue
+
+            reasoning_span = self.tracer.start_span(
+                name="model.reasoning",
+                kind=SpanKind.client,
+                span_type=SpanType.model_reasoning,
+                parent_id=self.span.id,
+                activate=False,
+                attributes={
+                    "message.index": index,
+                    "model.name": getattr(message, "model_name", None),
+                    "model.reasoning": reasoning_text[:10000],
+                },
+            )
+            self.tracer.end_span(reasoning_span)
+            captured += 1
+
+        return captured
 
     def _serialize_value(self, value: Any) -> Any:
         try:
@@ -408,6 +460,10 @@ class traced_agent_run:
         
         if hasattr(output, "__class__"):
             self.span.set_attribute("result.type", output.__class__.__name__)
+
+        reasoning_span_count = self._capture_reasoning_spans(result)
+        if reasoning_span_count > 0:
+            self.span.set_attribute("trace.reasoning_span_count", reasoning_span_count)
         
         final_span = self.tracer.start_span(
             name="model.response:final",
@@ -421,6 +477,54 @@ class traced_agent_run:
             },
         )
         self.tracer.end_span(final_span)
+
+    def _capture_reasoning_spans(self, result: Any) -> int:
+        """Extract model thinking from run messages and persist model.reasoning spans."""
+        if not self.span or not hasattr(result, "all_messages"):
+            return 0
+
+        try:
+            messages = result.all_messages()
+        except Exception:
+            return 0
+
+        captured = 0
+        for index, message in enumerate(messages):
+            parts = getattr(message, "parts", None)
+            if not parts:
+                continue
+
+            reasoning_parts = []
+            for part in parts:
+                if getattr(part, "part_kind", "") != "thinking":
+                    continue
+                content = getattr(part, "content", None)
+                if content:
+                    reasoning_parts.append(str(content))
+
+            if not reasoning_parts:
+                continue
+
+            reasoning_text = "\n".join(reasoning_parts).strip()
+            if not reasoning_text:
+                continue
+
+            reasoning_span = self.tracer.start_span(
+                name="model.reasoning",
+                kind=SpanKind.client,
+                span_type=SpanType.model_reasoning,
+                parent_id=self.span.id,
+                activate=False,
+                attributes={
+                    "message.index": index,
+                    "model.name": getattr(message, "model_name", None),
+                    "model.reasoning": reasoning_text[:10000],
+                },
+            )
+            self.tracer.end_span(reasoning_span)
+            captured += 1
+
+        return captured
     
     def _serialize_value(self, value: Any) -> Any:
         try:

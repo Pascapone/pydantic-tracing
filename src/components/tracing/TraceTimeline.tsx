@@ -2,34 +2,7 @@ import { useRef, useEffect, useMemo, useState } from 'react';
 import type { TraceTimelineProps, Span } from '@/types/tracing';
 import { SpanNode } from './SpanNode';
 import { RefreshCw, GitBranch } from 'lucide-react';
-
-/**
- * Recursively sort and filter a span tree.
- * Filters out:
- * - model.request spans (redundant)
- * - model.response spans (unless it's the final one)
- */
-const processSpanTree = (spans: Span[]): Span[] => {
-  return spans
-    .filter(span => {
-      // Filter out all model.request spans
-      if (span.spanType === 'model.request') return false;
-      
-      // Filter out model.response spans unless it is the final one
-      if (span.spanType === 'model.response') {
-        // Keep it if it's explicitly named ":final" or has "final" in the name
-        // The backend names it "model.response:final"
-        return span.name.includes(':final');
-      }
-      
-      return true;
-    })
-    .map((span) => ({
-      ...span,
-      children: span.children ? processSpanTree(span.children) : [],
-    }))
-    .sort((a, b) => a.startTime - b.startTime);
-};
+import { processSpanTree } from './traceTree';
 
 /**
  * Flatten tree for stats and timestamp computations.
