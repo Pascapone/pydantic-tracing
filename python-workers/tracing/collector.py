@@ -294,7 +294,7 @@ class TraceCollector:
         if hasattr(value, "model_dump"):
             return value.model_dump()
         if dataclasses.is_dataclass(value):
-            return dataclasses.asdict(value)
+            return {f.name: getattr(value, f.name) for f in dataclasses.fields(value)}
         if isinstance(value, (datetime, date)):
             return value.isoformat()
         if isinstance(value, Enum):

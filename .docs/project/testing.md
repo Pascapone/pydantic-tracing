@@ -88,3 +88,19 @@ Actions:
 Actions:
 1. Ensure test creates an `agent.run` job, not only generic queue jobs.
 2. Confirm payload includes user context (`userId` / `user_id`) so user-filtered traces appear.
+
+### Sandbox Execution Policy (`spawn EPERM`)
+
+Symptoms: Running Vitest or Playwright within a sandbox environment fails with `spawn EPERM` errors.
+
+Actions:
+1. This is a sandbox constraint blocking child processes, not an application code regression.
+2. Run the tests outside the sandbox to verify actual code correctness.
+
+### Python Environment Native Extension `Access Denied`
+
+Symptoms: Python tests or worker scripts fail with `Access Denied` when importing native `.pyd` modules (e.g., `_pydantic_core.pyd`) within a sandbox.
+
+Actions:
+1. This is caused by `uv` installs using hardlinks interacting poorly with sandbox ACLs.
+2. Resolve by reinstalling the python environment in copy mode: `uv sync --reinstall --link-mode copy`.

@@ -27,6 +27,12 @@ class ResearchSource(BaseModel):
     relevance_score: float = Field(ge=0, le=1)
 
 
+class SearchReport(BaseModel):
+    query: str
+    sources: list[ResearchSource]
+    findings: list[str]
+
+
 class ResearchReport(BaseModel):
     query: str
     summary: str

@@ -1,0 +1,8 @@
+enabled_frameworks:
+- codex
+- antigravity
+installed_skills: {}
+name: tanstack-python-jobs
+path: C:\Users\Pasko\Documents\projects\tanstack-python-jobs
+vault_branch: main
+vault_remote: origin

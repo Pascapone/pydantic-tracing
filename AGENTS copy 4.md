@@ -51,8 +51,6 @@ npm run test:e2e:traces
 - In this environment, Playwright should use a warm/manual dev server (`npm run dev:test`) instead of Playwright-managed `webServer`.
 - Run `npm run test:e2e:preflight` before E2E to catch bad local routing (for example Dokploy `400` pages) early.
 - If PowerShell blocks `npm.ps1`, use `cmd /c npm run <script>`.
-- **Sandbox Execution**: `spawn EPERM` errors can occur when running Node tests (Vitest/Playwright) inside a sandbox environment due to execution-policy constraints. Run tests outside the sandbox to verify code correctness.
-- **Python Environment**: `uv` installs with hardlinks can interact badly with sandbox ACL contexts for native extensions (e.g., `_pydantic_core.pyd`), causing access denied errors. Fix this by reinstalling the environment with `uv sync --reinstall --link-mode copy` outside the sandbox.
 
 ## Styling
 
@@ -234,11 +232,6 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 
 ### 2.1 File Structure
 ```
-.docs/             # Project documentation and historical records
-├── project/       # Core project documentation and guides
-├── handoffs/      # Historical session handoff records
-├── plans/         # Implementation and migration plans
-└── problems/      # Problem records and baseline snapshots
 src/
 ├── components/     # Shared UI components (Header, etc.)
 ├── db/            # Database configuration & schema
@@ -465,7 +458,7 @@ The project includes a **custom tracing system** for pydantic-ai agents with SQL
 | **Multi-Agent System** | Orchestrator, Research, Coding, Analysis agents |
 | **Tool Calling** | Each agent has multiple tools with complex payloads |
 | **Structured Outputs** | Pydantic models for type-safe outputs |
-| **Agent Delegation** | Agents call other agents as tools (robust against cancellation/errors, preserves reasoning) |
+| **Agent Delegation** | Agents call other agents as tools |
 | **SQLite Storage** | All traces persisted locally for querying |
 | **OTel Compatible** | Export to OpenTelemetry format |
 

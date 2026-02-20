@@ -4,6 +4,7 @@ Orchestrator agent that coordinates sub-agents for complex tasks.
 
 import asyncio
 import time
+import traceback
 from typing import Any
 from pydantic_ai import Agent, RunContext, ModelRetry
 from .schemas import (
@@ -60,7 +61,6 @@ async def _run_delegated_agent_with_trace(
             async for event in sub_agent.run_stream_events(
                 prompt,
                 deps=ctx.deps,
-                usage=ctx.usage,
             ):
                 run.handle_stream_event(event)
                 event_kind = str(getattr(event, "event_kind", ""))
@@ -69,6 +69,8 @@ async def _run_delegated_agent_with_trace(
                     stream_result = getattr(event, "result", None)
 
             if stream_result is not None:
+                if hasattr(stream_result, "usage"):
+                    ctx.usage.incr(stream_result.usage())
                 run.set_result(stream_result)
                 return stream_result
 
@@ -76,7 +78,6 @@ async def _run_delegated_agent_with_trace(
         async with sub_agent.iter(
             prompt,
             deps=ctx.deps,
-            usage=ctx.usage,
         ) as active_run:
             agent_run = active_run
             async for _ in active_run:
@@ -85,6 +86,9 @@ async def _run_delegated_agent_with_trace(
             result = active_run.result
             if result is None:
                 raise RuntimeError("Delegated agent run completed without a final result")
+
+            if hasattr(result, "usage"):
+                ctx.usage.incr(result.usage())
 
             run.set_result(result)
             return result
@@ -181,6 +185,7 @@ Guidelines:
                         }
                     )
                 except Exception as e:
+                    traceback.print_exc()
                     duration_ms = int((time.time() - start) * 1000)
                     delegation_span.set_attribute("result.status", "failed")
                     delegation_span.set_attribute("result.error", str(e))

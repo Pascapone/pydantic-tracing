@@ -5,6 +5,11 @@ Patterns and conventions specific to this project.
 ## File Organization
 
 ```
+.docs/               # Project documentation and historical records
+├── project/         # Core documentation (conventions, testing, db)
+├── handoffs/        # Historical session handoffs
+├── plans/           # Implementation plans
+└── problems/        # Recorded issues and baselines
 src/
 ├── components/       # Shared UI components
 │   ├── jobs/        # Job-related components
