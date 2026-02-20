@@ -8,7 +8,7 @@
  * - Right Sidebar (w-96): Raw log stream
  */
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { TraceHeader } from "./TraceHeader";
 import { TraceSidebar, type TraceSummary } from "./TraceSidebar";
 import type { TraceStatsData } from "./TraceStats";
@@ -23,7 +23,7 @@ import {
   type Span,
   type LogEntry,
 } from "@/lib/hooks/use-traces";
-import { useTracesSubscription } from "@/lib/hooks/use-trace-websocket";
+import { useTraceWebSocket } from "@/lib/hooks/use-trace-websocket";
 import type { TraceRow } from "@/lib/tracing/db";
 import type { Trace as TimelineTrace, Span as TimelineSpan } from "@/types/tracing";
 
@@ -180,6 +180,8 @@ export function TraceTerminal({
   const [searchValue, setSearchValue] = useState("");
   const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>(initialTraceId);
   const [isLogPaused, setIsLogPaused] = useState(false);
+  const selectedTraceIdRef = useRef<string | undefined>(initialTraceId);
+  const traceRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track WebSocket updates separately to merge with polled traces
   const [wsTraces, setWsTraces] = useState<Map<string, Trace>>(new Map());
@@ -191,8 +193,25 @@ export function TraceTerminal({
     pollInterval: 5000,
   });
 
-  // WebSocket subscription for real-time updates
-  const { isConnected } = useTracesSubscription({
+  // Fetch selected trace with polling (plus push refetch on WebSocket span events)
+  const { trace, refetch: refetchTrace } = useTrace(selectedTraceId || null, {
+    pollInterval: 2000,
+    pollWhileRunning: true,
+  });
+
+  const scheduleSelectedTraceRefetch = useCallback(() => {
+    if (traceRefetchTimeoutRef.current) {
+      return;
+    }
+
+    traceRefetchTimeoutRef.current = setTimeout(() => {
+      traceRefetchTimeoutRef.current = null;
+      void refetchTrace();
+    }, 120);
+  }, [refetchTrace]);
+
+  // WebSocket subscription for real-time updates (trace list + selected trace spans)
+  const { isConnected, subscribeToTraces, subscribeToTrace, unsubscribeFromTrace } = useTraceWebSocket({
     onTraceCreated: (traceRow: TraceRow) => {
       const trace = traceRowToTrace(traceRow);
       setWsTraces((prev) => {
@@ -208,6 +227,15 @@ export function TraceTerminal({
         next.set(trace.id, trace);
         return next;
       });
+
+      if (trace.id === selectedTraceIdRef.current) {
+        scheduleSelectedTraceRefetch();
+      }
+    },
+    onSpanCreated: ({ traceId }) => {
+      if (traceId === selectedTraceIdRef.current) {
+        scheduleSelectedTraceRefetch();
+      }
     },
   });
 
@@ -223,11 +251,7 @@ export function TraceTerminal({
 
     // Overlay WebSocket updates (these have priority)
     for (const [id, trace] of wsTraces) {
-      // Only use WebSocket trace if it doesn't exist in polled data,
-      // or if we want to prefer the WebSocket version
-      if (!traceMap.has(id)) {
-        traceMap.set(id, trace);
-      }
+      traceMap.set(id, trace);
     }
 
     // Convert back to array and sort by started_at
@@ -235,12 +259,6 @@ export function TraceTerminal({
       (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
     );
   }, [traces, wsTraces]);
-
-  // Fetch selected trace with polling
-  const { trace } = useTrace(selectedTraceId || null, {
-    pollInterval: 2000,
-    pollWhileRunning: true,
-  });
 
   // Create agent job
   const { createJob } = useCreateAgentJob();
@@ -324,6 +342,37 @@ export function TraceTerminal({
   }, []);
 
   // Update search when trace is selected
+  useEffect(() => {
+    selectedTraceIdRef.current = selectedTraceId;
+  }, [selectedTraceId]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      return;
+    }
+    subscribeToTraces();
+  }, [isConnected, subscribeToTraces]);
+
+  useEffect(() => {
+    if (!isConnected || !selectedTraceId) {
+      return;
+    }
+
+    subscribeToTrace(selectedTraceId);
+    return () => {
+      unsubscribeFromTrace(selectedTraceId);
+    };
+  }, [isConnected, selectedTraceId, subscribeToTrace, unsubscribeFromTrace]);
+
+  useEffect(() => {
+    return () => {
+      if (traceRefetchTimeoutRef.current) {
+        clearTimeout(traceRefetchTimeoutRef.current);
+        traceRefetchTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (selectedTraceId) {
       setSearchValue(selectedTraceId.slice(0, 8));

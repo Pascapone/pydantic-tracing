@@ -4,6 +4,7 @@ OpenTelemetry-compatible span processor for pydantic-ai.
 import contextvars
 import json
 import threading
+import time
 from typing import Optional, Any, Sequence
 from dataclasses import dataclass, field
 
@@ -38,6 +39,8 @@ class PydanticAITracer:
         db_path: str = "traces.db",
     ):
         self.collector = collector or get_collector(db_path)
+        self._time_lock = threading.Lock()
+        self._last_start_time_us = 0
         self._context_var: contextvars.ContextVar[Optional[TracingContext]] = contextvars.ContextVar(
             "pydantic_ai_tracing_context",
             default=None,
@@ -102,6 +105,13 @@ class PydanticAITracer:
             span_type=span_type,
             attributes=attributes or {},
         )
+
+        # Guarantee strictly increasing span start times so UI ordering is deterministic
+        # even when spans are created within the same microsecond.
+        with self._time_lock:
+            if span.start_time <= self._last_start_time_us:
+                span.start_time = self._last_start_time_us + 1
+            self._last_start_time_us = span.start_time
         
         if activate:
             self.context.push_span(span)
@@ -370,6 +380,7 @@ class traced_delegation:
                 "delegation.query": self.query[:500] if self.query else "",
             },
         )
+        self.tracer.collector.save_span(self.span)
         return self.span
     
     def set_result(self, result: Any) -> None:
@@ -432,6 +443,11 @@ class traced_agent_run:
         self.model = model
         self.tracer = tracer or get_tracer()
         self.span: Optional[Span] = None
+        self._active_tool_spans: dict[str, Span] = {}
+        self._active_part_spans: dict[int, dict[str, Any]] = {}
+        self._stream_event_count = 0
+        self._stream_reasoning_span_count = 0
+        self._stream_tool_span_count = 0
     
     def __enter__(self) -> "traced_agent_run":
         self.span = self.tracer.start_span(
@@ -443,12 +459,199 @@ class traced_agent_run:
                 "agent.model": self.model,
             },
         )
+        self.tracer.collector.save_span(self.span)
         return self
+
+    def handle_stream_event(self, event: Any) -> None:
+        """Capture delegated sub-agent stream events in real time."""
+        if not self.span:
+            return
+
+        event_kind = str(getattr(event, "event_kind", ""))
+        event_type = type(event).__name__
+
+        if event_kind in {"function_tool_call", "builtin_tool_call"} or event_type in {
+            "FunctionToolCallEvent",
+            "BuiltinToolCallEvent",
+        }:
+            part = getattr(event, "part", None)
+            if part is None:
+                return
+
+            tool_name = self._extract_tool_name(part, default="unknown")
+            tool_call_id = getattr(event, "tool_call_id", None) or getattr(part, "tool_call_id", None)
+            if tool_call_id is None:
+                tool_call_id = f"stream-{time.time_ns()}-{tool_name}"
+            tool_call_id = str(tool_call_id)
+
+            tool_span = self.tracer.start_span(
+                name=f"tool.call:{tool_name}",
+                kind=SpanKind.internal,
+                span_type=SpanType.tool_call,
+                parent_id=self.span.id,
+                activate=False,
+                attributes={
+                    "tool.name": tool_name,
+                    "tool.call_id": tool_call_id,
+                    "tool.arguments": self._extract_tool_arguments(getattr(part, "args", None)),
+                },
+            )
+            tool_span.add_event("tool_call", {"tool.call_id": tool_call_id})
+            self.tracer.collector.save_span(tool_span)
+            self._active_tool_spans[tool_call_id] = tool_span
+            self._stream_event_count += 1
+            return
+
+        if event_kind in {"function_tool_result", "builtin_tool_result"} or event_type in {
+            "FunctionToolResultEvent",
+            "BuiltinToolResultEvent",
+        }:
+            result_part = getattr(event, "result", None)
+            if result_part is None:
+                return
+
+            tool_call_id_raw = getattr(result_part, "tool_call_id", None) or getattr(event, "tool_call_id", None)
+            tool_call_id = str(tool_call_id_raw) if tool_call_id_raw is not None else None
+            tool_name = self._extract_tool_name(result_part, default="unknown")
+            result_content = getattr(result_part, "content", None)
+            part_kind = self._normalize_part_kind(result_part)
+            status = SpanStatus.error if part_kind == "retry-prompt" else SpanStatus.ok
+
+            tool_span = self._active_tool_spans.pop(tool_call_id, None) if tool_call_id else None
+            if tool_span is None:
+                tool_span = self.tracer.start_span(
+                    name=f"tool.call:{tool_name}",
+                    kind=SpanKind.internal,
+                    span_type=SpanType.tool_call,
+                    parent_id=self.span.id,
+                    activate=False,
+                    attributes={
+                        "tool.name": tool_name,
+                        "tool.call_id": tool_call_id,
+                    },
+                )
+                self.tracer.collector.save_span(tool_span)
+            elif tool_name and tool_span.attributes.get("tool.name") == "unknown":
+                tool_span.set_attribute("tool.name", tool_name)
+                tool_span.name = f"tool.call:{tool_name}"
+
+            tool_span.set_attribute("tool.result", self._serialize_value(result_content))
+            tool_span.set_attribute(
+                "tool.result_type",
+                type(result_content).__name__ if result_content is not None else "None",
+            )
+            tool_span.add_event("tool_result", {"status": status.value})
+            self.tracer.end_span(tool_span, status=status)
+            self._stream_tool_span_count += 1
+            self._stream_event_count += 1
+            return
+
+        if event_kind == "part_start" or event_type == "PartStartEvent":
+            part = getattr(event, "part", None)
+            index = getattr(event, "index", None)
+            if part is None or index is None:
+                return
+
+            part_kind = self._normalize_part_kind(part)
+            if part_kind not in {"text", "thinking"}:
+                return
+
+            previous = self._active_part_spans.pop(index, None)
+            if previous:
+                self._close_part_span(previous, incomplete=False)
+
+            span_type = SpanType.model_reasoning if part_kind == "thinking" else SpanType.model_response
+            span_name = "model.reasoning" if part_kind == "thinking" else "model.response"
+            initial_content = str(getattr(part, "content", "") or "")
+
+            part_span = self.tracer.start_span(
+                name=span_name,
+                kind=SpanKind.client,
+                span_type=span_type,
+                parent_id=self.span.id,
+                activate=False,
+                attributes={
+                    "model.part_kind": part_kind,
+                    "model.part_index": index,
+                    "model.provider": getattr(part, "provider_name", None),
+                    "content": self._truncate(initial_content, 6000),
+                },
+            )
+            self._active_part_spans[index] = {
+                "span": part_span,
+                "kind": part_kind,
+                "content": initial_content,
+            }
+            self._stream_event_count += 1
+            return
+
+        if event_kind == "part_delta" or event_type == "PartDeltaEvent":
+            index = getattr(event, "index", None)
+            delta = getattr(event, "delta", None)
+            if index is None or delta is None:
+                return
+
+            part_state = self._active_part_spans.get(index)
+            if not part_state:
+                return
+
+            delta_kind = self._normalize_part_kind(delta)
+            if delta_kind not in {"text", "thinking"}:
+                return
+
+            content_delta = getattr(delta, "content_delta", None)
+            if content_delta:
+                part_state["content"] += str(content_delta)
+            self._stream_event_count += 1
+            return
+
+        if event_kind == "part_end" or event_type == "PartEndEvent":
+            part = getattr(event, "part", None)
+            index = getattr(event, "index", None)
+            if part is None or index is None:
+                return
+
+            part_state = self._active_part_spans.pop(index, None)
+            part_kind = self._normalize_part_kind(part)
+            if part_kind not in {"text", "thinking"}:
+                return
+
+            content = str(getattr(part, "content", "") or "")
+
+            if part_state:
+                if content:
+                    part_state["content"] = content
+            else:
+                span_type = SpanType.model_reasoning if part_kind == "thinking" else SpanType.model_response
+                span_name = "model.reasoning" if part_kind == "thinking" else "model.response"
+                part_span = self.tracer.start_span(
+                    name=span_name,
+                    kind=SpanKind.client,
+                    span_type=span_type,
+                    parent_id=self.span.id,
+                    activate=False,
+                    attributes={
+                        "model.part_kind": part_kind,
+                        "model.part_index": index,
+                    },
+                )
+                part_state = {
+                    "span": part_span,
+                    "kind": part_kind,
+                    "content": content,
+                }
+
+            self._close_part_span(part_state, incomplete=False)
+            self._stream_event_count += 1
+            return
     
     def set_result(self, result: Any) -> None:
         """Set the result of the agent run."""
         if not self.span:
             return
+
+        # Ensure in-flight stream spans are closed before final output is attached.
+        self._finalize_stream_spans(incomplete=False)
         
         output = result
         if hasattr(result, "output"):
@@ -462,11 +665,15 @@ class traced_agent_run:
         if hasattr(output, "__class__"):
             self.span.set_attribute("result.type", output.__class__.__name__)
 
-        reasoning_span_count = self._capture_reasoning_spans(result)
+        if self._stream_event_count > 0:
+            reasoning_span_count = self._stream_reasoning_span_count
+            tool_call_span_count = self._stream_tool_span_count
+            self.span.set_attribute("trace.stream_event_count", self._stream_event_count)
+        else:
+            reasoning_span_count, tool_call_span_count = self._capture_message_spans_in_order(result)
+
         if reasoning_span_count > 0:
             self.span.set_attribute("trace.reasoning_span_count", reasoning_span_count)
-
-        tool_call_span_count = self._capture_tool_spans(result)
         if tool_call_span_count > 0:
             self.span.set_attribute("trace.tool_call_span_count", tool_call_span_count)
         
@@ -501,18 +708,26 @@ class traced_agent_run:
         if error is not None:
             self.set_error(error)
 
+        # Always flush active stream spans first so cancellations/timeouts are visible immediately.
+        self._finalize_stream_spans(incomplete=True)
+
         extracted_messages = self._extract_messages(messages)
-        if not extracted_messages:
-            return
-
         self.span.set_attribute("stream.incomplete", True)
-        self.span.set_attribute("trace.partial_message_count", len(extracted_messages))
+        if extracted_messages:
+            self.span.set_attribute("trace.partial_message_count", len(extracted_messages))
 
-        reasoning_span_count = self._capture_reasoning_spans(extracted_messages)
+        if self._stream_event_count > 0:
+            reasoning_span_count = self._stream_reasoning_span_count
+            tool_call_span_count = self._stream_tool_span_count
+            self.span.set_attribute("trace.stream_event_count", self._stream_event_count)
+        else:
+            reasoning_span_count, tool_call_span_count = self._capture_message_spans_in_order(
+                extracted_messages,
+                incomplete=True,
+            )
+
         if reasoning_span_count > 0:
             self.span.set_attribute("trace.reasoning_span_count", reasoning_span_count)
-
-        tool_call_span_count = self._capture_tool_spans(extracted_messages)
         if tool_call_span_count > 0:
             self.span.set_attribute("trace.tool_call_span_count", tool_call_span_count)
 
@@ -547,64 +762,27 @@ class traced_agent_run:
 
         return []
 
-    def _capture_reasoning_spans(self, result: Any) -> int:
-        """Extract model thinking from run messages and persist model.reasoning spans."""
+    def _capture_message_spans_in_order(
+        self,
+        result: Any,
+        *,
+        incomplete: bool = False,
+    ) -> tuple[int, int]:
+        """
+        Capture reasoning + tool spans in strict message/part order.
+
+        This preserves the exact execution order for non-streaming/fallback paths.
+        """
         if not self.span:
-            return 0
+            return 0, 0
 
         messages = self._extract_messages(result)
         if not messages:
-            return 0
-
-        captured = 0
-        for index, message in enumerate(messages):
-            parts = getattr(message, "parts", None)
-            if not parts:
-                continue
-
-            reasoning_parts = []
-            for part in parts:
-                if getattr(part, "part_kind", "") != "thinking":
-                    continue
-                content = getattr(part, "content", None)
-                if content:
-                    reasoning_parts.append(str(content))
-
-            if not reasoning_parts:
-                continue
-
-            reasoning_text = "\n".join(reasoning_parts).strip()
-            if not reasoning_text:
-                continue
-
-            reasoning_span = self.tracer.start_span(
-                name="model.reasoning",
-                kind=SpanKind.client,
-                span_type=SpanType.model_reasoning,
-                parent_id=self.span.id,
-                activate=False,
-                attributes={
-                    "message.index": index,
-                    "model.name": getattr(message, "model_name", None),
-                    "model.reasoning": reasoning_text[:10000],
-                },
-            )
-            self.tracer.end_span(reasoning_span)
-            captured += 1
-
-        return captured
-
-    def _capture_tool_spans(self, result: Any) -> int:
-        """Extract tool call/return parts from message history and persist tool.call spans."""
-        if not self.span:
-            return 0
-
-        messages = self._extract_messages(result)
-        if not messages:
-            return 0
+            return 0, 0
 
         active_tool_spans: dict[str, Span] = {}
-        captured = 0
+        reasoning_count = 0
+        tool_count = 0
 
         for message_index, message in enumerate(messages):
             parts = getattr(message, "parts", None)
@@ -612,16 +790,34 @@ class traced_agent_run:
                 continue
 
             for part_index, part in enumerate(parts):
-                part_kind = str(getattr(part, "part_kind", "")).lower().replace("_", "-")
-                part_type = type(part).__name__
-                is_tool_call = part_kind == "tool-call" or part_type == "ToolCallPart"
-                is_tool_result = (
-                    part_kind in {"tool-return", "retry-prompt"}
-                    or part_type in {"ToolReturnPart", "RetryPromptPart"}
-                )
+                part_kind = self._normalize_part_kind(part)
 
-                if is_tool_call:
-                    tool_name = getattr(part, "tool_name", None) or getattr(part, "name", None) or "unknown"
+                if part_kind == "thinking":
+                    content = str(getattr(part, "content", "") or "").strip()
+                    if not content:
+                        continue
+
+                    reasoning_span = self.tracer.start_span(
+                        name="model.reasoning",
+                        kind=SpanKind.client,
+                        span_type=SpanType.model_reasoning,
+                        parent_id=self.span.id,
+                        activate=False,
+                        attributes={
+                            "message.index": message_index,
+                            "message.part_index": part_index,
+                            "model.name": getattr(message, "model_name", None),
+                            "model.reasoning": content[:10000],
+                        },
+                    )
+                    if incomplete:
+                        reasoning_span.set_attribute("stream.incomplete", True)
+                    self.tracer.end_span(reasoning_span)
+                    reasoning_count += 1
+                    continue
+
+                if part_kind == "tool-call":
+                    tool_name = self._extract_tool_name(part, default="unknown")
                     tool_call_id = (
                         getattr(part, "tool_call_id", None)
                         or f"msg-{message_index}-part-{part_index}-{tool_name}"
@@ -645,12 +841,12 @@ class traced_agent_run:
                     active_tool_spans[tool_call_id] = tool_span
                     continue
 
-                if not is_tool_result:
+                if part_kind not in {"tool-return", "retry-prompt"}:
                     continue
 
                 tool_call_id_raw = getattr(part, "tool_call_id", None)
                 tool_call_id = str(tool_call_id_raw) if tool_call_id_raw is not None else None
-                tool_name = getattr(part, "tool_name", None) or getattr(part, "name", None) or "unknown"
+                tool_name = self._extract_tool_name(part, default="unknown")
                 result_content = getattr(part, "content", None)
                 status = SpanStatus.error if part_kind == "retry-prompt" else SpanStatus.ok
 
@@ -678,8 +874,10 @@ class traced_agent_run:
                     "tool.result_type",
                     type(result_content).__name__ if result_content is not None else "None",
                 )
+                if incomplete:
+                    tool_span.set_attribute("stream.incomplete", True)
                 self.tracer.end_span(tool_span, status=status)
-                captured += 1
+                tool_count += 1
 
         for pending_span in active_tool_spans.values():
             pending_span.set_attribute("stream.incomplete", True)
@@ -689,9 +887,67 @@ class traced_agent_run:
                 status=SpanStatus.error,
                 message="Tool return missing from message history",
             )
-            captured += 1
+            tool_count += 1
 
-        return captured
+        return reasoning_count, tool_count
+
+    def _finalize_stream_spans(self, *, incomplete: bool) -> None:
+        for index, part_state in list(self._active_part_spans.items()):
+            self._close_part_span(part_state, incomplete=incomplete)
+            self._active_part_spans.pop(index, None)
+
+        for tool_call_id, tool_span in list(self._active_tool_spans.items()):
+            tool_span.set_attribute("stream.incomplete", True)
+            tool_span.set_attribute("tool.result", "<tool result event missing>")
+            self.tracer.end_span(
+                tool_span,
+                status=SpanStatus.error,
+                message="Tool result event missing",
+            )
+            self._stream_tool_span_count += 1
+            self._active_tool_spans.pop(tool_call_id, None)
+
+    def _close_part_span(self, part_state: dict[str, Any], *, incomplete: bool) -> None:
+        span = part_state["span"]
+        part_kind = part_state["kind"]
+        content = self._truncate(str(part_state.get("content", "")), 10000)
+        if part_kind == "thinking":
+            span.set_attribute("model.reasoning", content)
+            self._stream_reasoning_span_count += 1
+        else:
+            span.set_attribute("output", content)
+            span.set_attribute("model.response", content)
+        if incomplete:
+            span.set_attribute("stream.incomplete", True)
+        self.tracer.end_span(span)
+
+    def _normalize_part_kind(self, part: Any) -> str:
+        part_kind = str(getattr(part, "part_kind", "")).lower().replace("_", "-")
+        if part_kind:
+            return part_kind
+
+        part_type = type(part).__name__
+        type_map = {
+            "ThinkingPart": "thinking",
+            "TextPart": "text",
+            "ToolCallPart": "tool-call",
+            "ToolReturnPart": "tool-return",
+            "RetryPromptPart": "retry-prompt",
+            "ThinkingPartDelta": "thinking",
+            "TextPartDelta": "text",
+        }
+        return type_map.get(part_type, "")
+
+    def _extract_tool_name(self, part: Any, default: str = "unknown") -> str:
+        tool_name = getattr(part, "tool_name", None) or getattr(part, "name", None)
+        if tool_name is None:
+            return default
+        return str(tool_name)
+
+    def _truncate(self, value: str, max_len: int) -> str:
+        if len(value) <= max_len:
+            return value
+        return value[:max_len] + f"... ({len(value) - max_len} chars truncated)"
 
     def _extract_tool_arguments(self, raw_args: Any) -> Any:
         if raw_args is None:
@@ -733,6 +989,12 @@ class traced_agent_run:
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if not self.span:
             return
+
+        if self._active_part_spans or self._active_tool_spans:
+            self._finalize_stream_spans(incomplete=True)
+
+        if self._stream_event_count > 0:
+            self.span.set_attribute("trace.stream_event_count", self._stream_event_count)
 
         end_status = self.span.status if self.span.status != SpanStatus.unset else SpanStatus.ok
         end_message = self.span.status_message
