@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useState } from 'react';
+import { useRef, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { TraceTimelineProps, Span } from '@/types/tracing';
 import { SpanNode } from './SpanNode';
 import { RefreshCw, GitBranch } from 'lucide-react';
@@ -10,6 +10,10 @@ import { processSpanTree } from './traceTree';
 const flattenSpans = (spans: Span[]): Span[] => {
   return spans.flatMap((span) => [span, ...(span.children ? flattenSpans(span.children) : [])]);
 };
+
+const timelineContentStyle = {
+  '--trace-readable-width': 'clamp(44rem, 58vw, 64rem)',
+} as CSSProperties;
 
 /**
  * Empty state when no trace is selected
@@ -34,12 +38,11 @@ const EmptyState = () => (
  * Streaming indicator at the bottom of timeline
  */
 const StreamingIndicator = () => (
-  <div className="relative pl-16 mb-8">
-    <div className="absolute left-3 top-0 w-6 h-6 rounded-full bg-primary/20 border-2 border-primary z-10 flex items-center justify-center animate-pulse">
-      <div className="w-2 h-2 rounded-full bg-primary" />
-    </div>
+  <div className="relative mb-8" style={{ width: 'var(--trace-readable-width)' }}>
     <div className="bg-surface-dark border border-primary/30 rounded-sm p-4 flex items-center gap-3">
-      <RefreshCw size={16} className="text-primary animate-spin" />
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 border-2 border-primary animate-pulse">
+        <RefreshCw size={14} className="text-primary animate-spin" />
+      </span>
       <span className="text-sm text-primary">Executing...</span>
     </div>
   </div>
@@ -49,8 +52,7 @@ const StreamingIndicator = () => (
  * TraceTimeline Component
  * 
  * Center panel showing the visual timeline of agent execution.
- * Displays spans as nodes connected by a vertical line with
- * relative timestamps and status indicators.
+ * Displays spans as nested nodes with relative timestamps and status indicators.
  */
 export function TraceTimeline({
   trace,
@@ -160,11 +162,8 @@ export function TraceTimeline({
       </div>
       
       {/* Timeline Content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-8">
-        <div className="max-w-3xl mx-auto relative">
-          {/* Vertical Line */}
-          <div className="absolute left-6 top-4 bottom-0 w-0.5 bg-slate-300 dark:bg-slate-700" />
-          
+      <div ref={scrollRef} className="flex-1 overflow-auto p-6">
+        <div className="relative w-max min-w-full pr-6" style={timelineContentStyle}>
           {/* Span Nodes */}
           {spanTree.map(span => (
             <SpanNode

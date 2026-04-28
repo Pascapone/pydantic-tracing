@@ -88,6 +88,16 @@ const spanTypeConfigs: Record<SpanType, SpanTypeConfig> = {
   },
 };
 
+const NESTING_INDENT_PX = 12;
+
+const getMaxDescendantDepth = (span: Span): number => {
+  if (!span.children || span.children.length === 0) {
+    return 0;
+  }
+
+  return 1 + Math.max(...span.children.map(getMaxDescendantDepth));
+};
+
 /**
  * Map span type to Lucide icon component
  */
@@ -420,7 +430,7 @@ const SpanContent = ({ span, isExpanded }: { span: Span; isExpanded: boolean }) 
  * SpanNode Component
  * 
  * Renders an individual span in the timeline with:
- * - Circular icon indicator
+ * - Inline span type indicator
  * - Timestamp display
  * - Expandable content area
  * - Status-based styling
@@ -493,66 +503,64 @@ export function SpanNode({
   };
 
   const hasChildren = span.children && span.children.length > 0;
-  const isNested = depth > 0;
+  const indentPx = depth > 0 ? NESTING_INDENT_PX : 0;
+  const subtreeIndentPx = getMaxDescendantDepth(span) * NESTING_INDENT_PX;
 
   return (
     <div
-      className="relative mb-6 group"
-      style={{ paddingLeft: depth > 0 ? 24 : 16 }}
+      className="relative mb-4 group"
+      style={{
+        marginLeft: indentPx,
+        width: `calc(var(--trace-readable-width) + ${subtreeIndentPx}px)`,
+      }}
     >
-      {/* Vertical connecting line for nested items */}
-      {isNested && (
-        <div 
-          className="absolute left-0 top-0 w-0.5 bg-slate-300 dark:bg-slate-700"
-          style={{ height: '100%' }}
-        />
-      )}
-
-      {/* Icon circle on timeline */}
-      <div
-        className={`absolute ${isNested ? 'left-[-11px]' : 'left-3'} top-0 w-6 h-6 rounded-full ${config.bgColor} border-2 ${config.borderColor} z-10 flex items-center justify-center ${isActive ? 'shadow-[0_0_10px_rgba(17,164,212,0.4)]' : ''
-          }`}
-      >
-        <SpanIcon type={span.spanType} className={config.color} />
-        {isActive && (
-          <span className="absolute w-1.5 h-1.5 rounded-full bg-primary animate-pulse -top-0.5 -right-0.5" />
-        )}
-      </div>
-
       {/* Content card */}
       <div
-        className={`bg-white dark:bg-[#1a262b] border ${statusStyles.cardClass} rounded-sm shadow-sm overflow-hidden transition-all hover:border-opacity-70 ${isActive ? statusStyles.glowClass : ''
+        className={`bg-white dark:bg-[#1a262b] border ${statusStyles.cardClass} rounded-sm shadow-sm transition-all hover:border-opacity-70 ${isActive ? statusStyles.glowClass : ''
           }`}
       >
         {/* Header */}
         <div
-          className={`px-4 py-2 ${isContentExpanded ? `border-b ${config.borderColor}/20` : ''} ${statusStyles.headerClass} flex justify-between items-center cursor-pointer`}
+          className={`px-4 py-2 ${isContentExpanded ? `border-b ${config.borderColor}/20` : ''} ${statusStyles.headerClass} cursor-pointer`}
           onClick={handleToggle}
         >
-          <span className={`text-xs font-bold ${config.color} uppercase tracking-wider flex items-center gap-2`}>
-            {isContentExpanded
-              ? <ChevronDown size={12} />
-              : <ChevronRight size={12} />
-            }
-            {config.label}
-            {span.name && span.spanType !== 'user_input' && (
-              <span className="font-normal text-slate-500 dark:text-slate-400 normal-case">
-                : {span.name}
+          <div
+            className="box-border flex w-full min-w-0 items-center gap-3"
+            style={{ maxWidth: 'var(--trace-readable-width)' }}
+          >
+            <span className={`min-w-0 flex-1 text-xs font-bold ${config.color} uppercase tracking-wider flex items-center gap-2`}>
+              {isContentExpanded
+                ? <ChevronDown size={12} />
+                : <ChevronRight size={12} />
+              }
+              <span
+                className={`relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${config.bgColor} border-2 ${config.borderColor} ${isActive ? 'shadow-[0_0_10px_rgba(17,164,212,0.4)]' : ''}`}
+              >
+                <SpanIcon type={span.spanType} className={config.color} />
+                {isActive && (
+                  <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                )}
               </span>
-            )}
-            {isActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            )}
-          </span>
-          <div className="flex items-center gap-2">
-            {duration && (
-              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                {duration}
-              </span>
-            )}
-            <span className="text-xs font-mono text-slate-400 dark:text-slate-500">
-              {relativeTime}
+              {config.label}
+              {span.name && span.spanType !== 'user_input' && (
+                <span className="min-w-0 truncate font-normal text-slate-500 dark:text-slate-400 normal-case">
+                  : {span.name}
+                </span>
+              )}
+              {isActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              )}
             </span>
+            <div className="ml-auto flex w-36 shrink-0 items-center justify-end gap-2 font-mono tabular-nums">
+              {duration && (
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                  {duration}
+                </span>
+              )}
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                {relativeTime}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -563,23 +571,19 @@ export function SpanNode({
 
         {/* Children */}
         {hasChildren && childrenExpanded && isContentExpanded && (
-          <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="relative pl-6 pr-4 py-4">
-              {/* Vertical line connecting nested children */}
-              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-300 dark:bg-slate-700" />
-              {span.children!.map((child) => (
-                <SpanNode
-                  key={child.id}
-                  span={child}
-                  startTime={startTime}
-                  depth={depth + 1}
-                  forceExpanded={forceExpanded}
-                  forceExpandedSignal={forceExpandedSignal}
-                  forceContentExpanded={forceContentExpanded}
-                  forceContentExpandedSignal={forceContentExpandedSignal}
-                />
-              ))}
-            </div>
+          <div className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 py-4">
+            {span.children!.map((child) => (
+              <SpanNode
+                key={child.id}
+                span={child}
+                startTime={startTime}
+                depth={depth + 1}
+                forceExpanded={forceExpanded}
+                forceExpandedSignal={forceExpandedSignal}
+                forceContentExpanded={forceContentExpanded}
+                forceContentExpandedSignal={forceContentExpandedSignal}
+              />
+            ))}
           </div>
         )}
       </div>
