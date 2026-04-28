@@ -8,6 +8,10 @@ import { ac, roles } from "@/lib/permissions";
 import type { AdminRoles } from "@/types/better-auth";
 
 export const auth = betterAuth({
+  trustedOrigins: [
+    "http://localhost:3341",
+    "http://127.0.0.1:3341",
+  ],
   database: drizzleAdapter(db, {
     provider: "sqlite",
     schema,
